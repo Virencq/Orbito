@@ -166,7 +166,8 @@ export function ChatInput({
           return
         }
         if (e.key === 'Escape') {
-          setInput((current) => current.replace(/(?:^|\s)\/[\w-]*$/, instruction).trimStart())
+          setInput((current) => current.replace(/(?:^|\s)\/[\w-]*$/, '').trimEnd())
+          setActiveSkillSuggestion(0)
           return
         }
         if (e.key === 'Enter' && !e.shiftKey) {
