@@ -76,7 +76,10 @@ export function ChatInput({
   } = useChatAttachments({ disabled, isStreaming })
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [showSkillsMenu, setShowSkillsMenu] = useState(false)
-  const skills = useSkillStore((state) => state.skills.filter((skill) => skill.enabled))
+  // Select the stable store array; filtering inside the selector creates a new
+  // snapshot on every read and can trigger React's maximum-update-depth error.
+  const allSkills = useSkillStore((state) => state.skills)
+  const skills = allSkills.filter((skill) => skill.enabled)
   const addMenuRef = useRef<HTMLDivElement>(null)
   const [dictation, setDictation] = useState<VoiceInputStatus | null>(null)
   const [dictationRuntimeAvailable, setDictationRuntimeAvailable] = useState<boolean | null>(null)
