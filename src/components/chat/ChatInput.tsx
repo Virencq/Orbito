@@ -81,7 +81,7 @@ export function ChatInput({
   // snapshot on every read and can trigger React's maximum-update-depth error.
   const allSkills = useSkillStore((state) => state.skills)
   const skills = allSkills.filter((skill) => skill.enabled)
-  const slashMatch = input.match(/(?:^|\\s)\\/([\\w-]*)$/)
+  const slashMatch = input.match(/(?:^|\s)\/([\w-]*)$/)
   const slashQuery = slashMatch?.[1]?.toLowerCase() ?? ''
   const slashSuggestions = slashMatch
     ? skills.filter((skill) => skill.name.toLowerCase().includes(slashQuery)).slice(0, 8)
@@ -166,7 +166,7 @@ export function ChatInput({
           return
         }
         if (e.key === 'Escape') {
-          setInput((current) => current.replace(/(?:^|\\s)\\/[\\w-]*$/, '').trimEnd())
+          setInput((current) => current.replace(/(?:^|\s)\/[\w-]*$/, instruction).trimStart())
           return
         }
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -174,7 +174,7 @@ export function ChatInput({
           const skill = slashSuggestions[activeSkillSuggestion] ?? slashSuggestions[0]
           if (skill) {
             const instruction = `Use the "${skill.name}" skill for this task. `
-            setInput((current) => current.replace(/(?:^|\\s)\\/[\\w-]*$/, instruction).trimStart())
+            setInput((current) => current.replace(/(?:^|\s)\/[\w-]*$/, instruction).trimStart())
             setActiveSkillSuggestion(0)
           }
           return
@@ -650,7 +650,7 @@ export function ChatInput({
                     onMouseEnter={() => setActiveSkillSuggestion(index)}
                     onClick={() => {
                       const instruction = `Use the "${skill.name}" skill for this task. `
-                      setInput((current) => current.replace(/(?:^|\\s)\\/[\\w-]*$/, instruction).trimStart())
+                      setInput((current) => current.replace(/(?:^|\s)\/[\w-]*$/, instruction).trimStart())
                       setActiveSkillSuggestion(0)
                       requestAnimationFrame(() => textareaRef.current?.focus())
                     }}
