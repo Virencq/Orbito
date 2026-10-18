@@ -76,10 +76,17 @@ export function ChatInput({
   } = useChatAttachments({ disabled, isStreaming })
   const [showAddMenu, setShowAddMenu] = useState(false)
   const [showSkillsMenu, setShowSkillsMenu] = useState(false)
+  const [activeSkillSuggestion, setActiveSkillSuggestion] = useState(0)
   // Select the stable store array; filtering inside the selector creates a new
   // snapshot on every read and can trigger React's maximum-update-depth error.
   const allSkills = useSkillStore((state) => state.skills)
   const skills = allSkills.filter((skill) => skill.enabled)
+  const slashMatch = input.match(/(?:^|\\s)\\/([\\w-]*)$/)
+  const slashQuery = slashMatch?.[1]?.toLowerCase() ?? ''
+  const slashSuggestions = slashMatch
+    ? skills.filter((skill) => skill.name.toLowerCase().includes(slashQuery)).slice(0, 8)
+    : []
+  const showSlashSuggestions = !!slashMatch && slashSuggestions.length > 0
   const addMenuRef = useRef<HTMLDivElement>(null)
   const [dictation, setDictation] = useState<VoiceInputStatus | null>(null)
   const [dictationRuntimeAvailable, setDictationRuntimeAvailable] = useState<boolean | null>(null)
@@ -147,6 +154,32 @@ export function ChatInput({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (showSlashSuggestions && !composingRef.current) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          setActiveSkillSuggestion((index) => (index + 1) % slashSuggestions.length)
+          return
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          setActiveSkillSuggestion((index) => (index - 1 + slashSuggestions.length) % slashSuggestions.length)
+          return
+        }
+        if (e.key === 'Escape') {
+          setInput((current) => current.replace(/(?:^|\\s)\\/[\\w-]*$/, '').trimEnd())
+          return
+        }
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault()
+          const skill = slashSuggestions[activeSkillSuggestion] ?? slashSuggestions[0]
+          if (skill) {
+            const instruction = `Use the "${skill.name}" skill for this task. `
+            setInput((current) => current.replace(/(?:^|\\s)\\/[\\w-]*$/, instruction).trimStart())
+            setActiveSkillSuggestion(0)
+          }
+          return
+        }
+      }
       if (e.key === 'Enter' && !e.shiftKey && !composingRef.current) {
         e.preventDefault()
         if ((input.trim() || attachments.length > 0) && !isStreaming && !disabled && !dictation?.recording && !dictationBusy && !realtimeMode && !realtimeBusy) {
@@ -154,7 +187,7 @@ export function ChatInput({
         }
       }
     },
-    [input, attachments, isStreaming, disabled, submitWithAttachments, dictation?.recording, dictationBusy, realtimeMode, realtimeBusy],
+    [input, attachments, isStreaming, disabled, submitWithAttachments, dictation?.recording, dictationBusy, realtimeMode, realtimeBusy, showSlashSuggestions, slashSuggestions, activeSkillSuggestion],
   )
 
   const handleSubmit = useCallback(
@@ -605,6 +638,30 @@ export function ChatInput({
           )}
 
           <div className="flex flex-col">
+            {showSlashSuggestions && (
+              <div role="listbox" aria-label="Skill suggestions" className="absolute bottom-[76px] left-3 z-[90] w-[min(360px,calc(100%-24px))] overflow-hidden rounded-xl border border-border bg-surface shadow-xl">
+                <div className="border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">Skills · ↑↓ to navigate · Enter to select</div>
+                {slashSuggestions.map((skill, index) => (
+                  <button
+                    key={skill.name}
+                    type="button"
+                    role="option"
+                    aria-selected={index === activeSkillSuggestion}
+                    onMouseEnter={() => setActiveSkillSuggestion(index)}
+                    onClick={() => {
+                      const instruction = `Use the "${skill.name}" skill for this task. `
+                      setInput((current) => current.replace(/(?:^|\\s)\\/[\\w-]*$/, instruction).trimStart())
+                      setActiveSkillSuggestion(0)
+                      requestAnimationFrame(() => textareaRef.current?.focus())
+                    }}
+                    className={`flex w-full flex-col px-3 py-2 text-left ${index === activeSkillSuggestion ? 'bg-surface-hover' : 'hover:bg-surface-hover'}`}
+                  >
+                    <span className="text-[13px] font-medium text-text">/{skill.name}</span>
+                    <span className="line-clamp-1 text-[11px] text-text-tertiary">{skill.description}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-2 px-4 pt-3 pb-1 animate-fade-in">
                 {attachments.map((att, idx) => (
