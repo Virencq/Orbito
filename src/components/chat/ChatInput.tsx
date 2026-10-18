@@ -4,6 +4,7 @@ import { Send, Square, X, File, Folder, Paperclip, FolderPlus, Mic, LoaderCircle
 import { TextField, TextArea } from "@heroui/react"
 import { Button, Card } from '../ui'
 import { useChatAttachments } from './useChatAttachments'
+import { useSkillStore } from '../../stores/skillStore'
 import { JCodeModelControls } from '../settings/JCodeModelControls'
 import {
   cancelDictation,
@@ -74,6 +75,8 @@ export function ChatInput({
     handlePaste,
   } = useChatAttachments({ disabled, isStreaming })
   const [showAddMenu, setShowAddMenu] = useState(false)
+  const [showSkillsMenu, setShowSkillsMenu] = useState(false)
+  const skills = useSkillStore((state) => state.skills.filter((skill) => skill.enabled))
   const addMenuRef = useRef<HTMLDivElement>(null)
   const [dictation, setDictation] = useState<VoiceInputStatus | null>(null)
   const [dictationRuntimeAvailable, setDictationRuntimeAvailable] = useState<boolean | null>(null)
@@ -99,7 +102,7 @@ export function ChatInput({
   const acceptVoiceTurnAfterRef = useRef(0)
 
   useEffect(() => {
-    if (!showAddMenu) return
+    if (!showAddMenu) { setShowSkillsMenu(false); return }
     const close = (event: MouseEvent) => {
       if (!addMenuRef.current?.contains(event.target as Node)) setShowAddMenu(false)
     }
@@ -721,13 +724,38 @@ export function ChatInput({
                           </button>
                           <button
                             type="button"
-                            onClick={() => setShowAddMenu(false)}
-                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] text-[#302c28] hover:bg-[#f5f2ef]"
+                            onClick={() => setShowSkillsMenu((open) => !open)}
+                            aria-expanded={showSkillsMenu}
+                            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] text-text hover:bg-surface-hover"
                           >
                             <span className="w-4 text-center">✦</span>
                             <span>Skills</span>
-                            <span className="ml-auto text-[#aaa39c]">›</span>
+                            <span className="ml-auto text-text-tertiary">{showSkillsMenu ? '⌄' : '›'}</span>
                           </button>
+                          {showSkillsMenu && (
+                            <div className="my-1 max-h-56 overflow-y-auto border-t border-border pt-1">
+                              {skills.length > 0 ? skills.map((skill) => (
+                                <button
+                                  key={skill.name}
+                                  type="button"
+                                  title={skill.description}
+                                  onClick={() => {
+                                    const instruction = `Use the "${skill.name}" skill for this task. `
+                                    setInput((current) => current.trim() ? `${current.trimEnd()}\n\n${instruction}` : instruction)
+                                    setShowSkillsMenu(false)
+                                    setShowAddMenu(false)
+                                    requestAnimationFrame(() => textareaRef.current?.focus())
+                                  }}
+                                  className="flex w-full flex-col rounded-lg px-3 py-2 text-left hover:bg-surface-hover"
+                                >
+                                  <span className="text-[12px] font-medium text-text">{skill.name}</span>
+                                  <span className="line-clamp-2 text-[10px] text-text-tertiary">{skill.description}</span>
+                                </button>
+                              )) : (
+                                <p className="px-3 py-3 text-xs text-text-tertiary">No active skills found. Scan skills in Settings → Skills.</p>
+                              )}
+                            </div>
+                          )}
                           <button
                             type="button"
                             onClick={() => setShowAddMenu(false)}
