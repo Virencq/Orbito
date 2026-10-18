@@ -640,8 +640,8 @@ export function ChatInput({
 
           <div className="flex flex-col">
             {showSlashSuggestions && (
-              <div role="listbox" aria-label="Skill suggestions" className="absolute bottom-[76px] left-3 z-[90] w-[min(360px,calc(100%-24px))] overflow-hidden rounded-xl border border-border bg-surface shadow-xl">
-                <div className="border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">Skills · ↑↓ to navigate · Enter to select</div>
+              <div role="listbox" aria-label="Skill suggestions" className="absolute bottom-[76px] left-3 z-[90] flex max-h-[min(320px,45vh)] w-[min(360px,calc(100%-24px))] flex-col overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface shadow-xl">
+                <div className="sticky top-0 z-10 shrink-0 border-b border-border bg-surface px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">Skills · ↑↓ to navigate · Enter to select</div>
                 {slashSuggestions.map((skill, index) => (
                   <button
                     key={skill.name}
