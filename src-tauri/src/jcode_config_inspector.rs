@@ -30,13 +30,20 @@ fn read_json(path: &PathBuf) -> Option<Value> {
     fs::read_to_string(path).ok().and_then(|text| serde_json::from_str(&text).ok())
 }
 
-fn count_named_arrays(value: &Value, key: &str) -> usize {
+fn count_named_entries(value: &Value, key: &str) -> usize {
     match value {
         Value::Object(map) => {
-            let own = map.get(key).and_then(Value::as_array).map_or(0, Vec::len);
-            own + map.values().map(|child| count_named_arrays(child, key)).sum::<usize>()
+            let own = map.get(key).map_or(0, |entries| match entries {
+                Value::Array(items) => items.len(),
+                Value::Object(items) => items.len(),
+                _ => 0,
+            });
+            own + map.iter()
+                .filter(|(name, _)| name.as_str() != key)
+                .map(|(_, child)| count_named_entries(child, key))
+                .sum::<usize>()
         }
-        Value::Array(items) => items.iter().map(|child| count_named_arrays(child, key)).sum(),
+        Value::Array(items) => items.iter().map(|child| count_named_entries(child, key)).sum(),
         _ => 0,
     }
 }
@@ -111,7 +118,7 @@ pub fn jcode_inspect_config() -> Result<Value, String> {
         .and_then(Value::as_object).map(|v| v.len());
     let managed_mcp_servers = managed.as_ref().and_then(Value::as_object).map(|v| v.len())
         .or_else(|| managed.as_ref().and_then(Value::as_array).map(Vec::len));
-    let cached_tool_entries = cache.as_ref().map(|v| count_named_arrays(v, "tools"));
+    let cached_tool_entries = cache.as_ref().map(|v| count_named_entries(v, "tools"));
     let cache_top_level_keys = cache.as_ref().and_then(Value::as_object).map(|v| v.len());
     let context_limit = hint.as_ref().and_then(|v| v.pointer("/session/context_limit").or_else(|| v.pointer("/session/contextLimit"))).and_then(Value::as_u64);
     let provider = hint.as_ref().and_then(|v| v.pointer("/session/provider_name").or_else(|| v.pointer("/session/providerName"))).and_then(Value::as_str);
@@ -148,9 +155,9 @@ pub fn jcode_inspect_config() -> Result<Value, String> {
 mod tests {
     use super::*;
     #[test]
-    fn counts_named_arrays_recursively_without_reading_contents() {
+    fn counts_named_entries_recursively_without_reading_contents() {
         let value = json!({"servers":[{"tools":[{"name":"a"},{"name":"b"}]},{"nested":{"tools":[{"name":"c"}]}}]});
-        assert_eq!(count_named_arrays(&value, "tools"), 3);
+        assert_eq!(count_named_entries(&value, "tools"), 3);
     }
 
     #[test]
