@@ -877,7 +877,44 @@ export function ChatInput({
                         <Square size={16} fill="currentColor" />
                       </Button>
                     ) : (
-                      <div className="flex items-center gap-2">
+                      <div className="flex w-full items-center gap-2">
+                        <div ref={addMenuRef} className="relative z-[80]">
+                          <button
+                            type="button"
+                            onClick={() => setShowAddMenu((open) => !open)}
+                            disabled={disabled || isStreaming}
+                            className="h-9 w-9 rounded-lg grid place-items-center text-text-secondary hover:bg-surface-hover disabled:opacity-40"
+                            title="Add files or photos"
+                            aria-label="Add files or photos"
+                            aria-expanded={showAddMenu}
+                          >
+                            <span className="text-[22px] leading-none">+</span>
+                          </button>
+                          {showAddMenu && (
+                            <div className="absolute bottom-11 left-0 z-50 w-64 overflow-hidden rounded-xl border border-border bg-surface p-1.5 shadow-xl">
+                              <button
+                                type="button"
+                                onClick={() => { setShowAddMenu(false); void pickFiles() }}
+                                className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] text-text hover:bg-surface-hover"
+                              >
+                                <Paperclip size={16} />
+                                <span>Add files or photos</span>
+                                <span className="ml-auto text-[10px] text-text-tertiary">Ctrl+U</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void pickFolder()}
+                          disabled={disabled || isStreaming}
+                          className="h-9 w-9 rounded-lg grid place-items-center text-text-secondary hover:bg-surface-hover disabled:opacity-40"
+                          title="Choose project folder"
+                          aria-label="Choose project folder"
+                        >
+                          <FolderPlus size={16} />
+                        </button>
+                        <div className="ml-auto flex items-center gap-2">
                         <JCodeModelControls compact />
                         {isTauriRuntime() && (
                           <>
@@ -929,6 +966,7 @@ export function ChatInput({
                         >
                           <Send size={18} strokeWidth={3} className={input.trim() || attachments.length > 0 ? 'translate-x-0.5 -translate-y-0.5' : ''}/>
                         </Button>
+                        </div>
                       </div>
                     )}
                   </>
