@@ -94,7 +94,7 @@ export function CodeWorkspace() {
         </div>
       </header>
 
-      <main className="min-h-0 flex-1 flex bg-bg">
+      <main className="min-h-0 min-w-0 h-full flex-1 flex overflow-hidden bg-bg">
         {showFiles && workspaceDir && (
           <aside className="w-[260px] shrink-0 border-r border-[#e8e3de] bg-[#fcfbfa] flex flex-col">
             <div className="h-10 shrink-0 px-3 border-b border-[#eee9e4] flex items-center justify-between">
@@ -106,7 +106,7 @@ export function CodeWorkspace() {
             </div>
           </aside>
         )}
-        <section className="min-w-0 flex-1 flex flex-col relative">
+        <section className="min-w-0 min-h-0 h-full flex-1 flex flex-col overflow-hidden relative">
           {!workspaceDir && (
             <div className="absolute inset-0 z-10 flex items-center justify-center px-6 bg-[#fcfbfa]">
               <div className="w-full max-w-[620px]">
