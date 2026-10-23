@@ -217,6 +217,30 @@ export async function runDoctor(): Promise<JCodeDoctorResult> {
   return invoke<JCodeDoctorResult>('jcode_doctor')
 }
 
+export interface JCodeConfigInspection {
+  home: string
+  files: Array<{ name: string; path: string; exists: boolean; bytes?: number | null; validJson?: boolean | null; note: string }>
+  settings: {
+    mcpTools?: string | null
+    mcpToolsTokenThreshold?: number | null
+    mcpProfile?: string | null
+    toolProfile?: string | null
+    configuredMcpServers?: number | null
+    managedMcpServers?: number | null
+    cachedToolArrayEntries?: number | null
+    schemaCacheTopLevelKeys?: number | null
+    provider?: string | null
+    model?: string | null
+    contextLimit?: number | null
+  }
+  interpretation: string[]
+  secretsExposed: boolean
+}
+
+export async function inspectJCodeConfig(): Promise<JCodeConfigInspection> {
+  return invoke<JCodeConfigInspection>('jcode_inspect_config')
+}
+
 export interface JCodeModelOption { id: string; name: string }
 export interface JCodeProviderOption { id: string; name: string; models: JCodeModelOption[] }
 export interface JCodeModelCatalog {
