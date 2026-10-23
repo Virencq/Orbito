@@ -4,7 +4,7 @@
 
 Orbito brings AI-assisted work into one Windows desktop app. Organize work by project, continue conversations with context, connect tools through MCP, and use the JCode agent runtime from a focused workspace.
 
-![Orbito desktop workspace](public/home.png)
+![Orbito desktop workspace]
 
 **Repository:** [Virencq/Orbito](https://github.com/Virencq/Orbito) · **Issues and bug reports:** [GitHub Issues](https://github.com/Virencq/Orbito/issues)
 
