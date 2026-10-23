@@ -156,18 +156,6 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
           sessionID: sid, messageID: sm.messageID,
         } as any)
       },
-      onMcpToolRequest: async (request) => {
-        try {
-          const result = await invoke('mcp_call_tool', {
-            name: request.serverName,
-            tool_name: request.toolName,
-            arguments: request.arguments,
-          })
-          await JCode.sendMcpToolResponse(jcodeSessionId, request.requestId, result)
-        } catch (err) {
-          await JCode.sendMcpToolResponse(jcodeSessionId, request.requestId, null, err instanceof Error ? err.message : String(err))
-        }
-      },
       onToolApproval: (request) => {
         setPendingApproval({ ...request, piSessionId: jcodeSessionId })
       },
@@ -245,17 +233,9 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         updateSessionTitle(sid, content.slice(0, 40) + (content.length > 40 ? '...' : ''))
       }
 
-      // Synchronize configured stdio connectors into JCode's own MCP config.
-      // JCode ACP currently reads MCP from ~/.jcode/mcp.json rather than host-supplied mcpServers.
-      const mcpSyncStartedAt = startPerformanceTimer()
-      recordPerformance('prompt.mcp-config-sync.begin', { serverCount: useMCPStore.getState().servers.length })
-      try {
-        await JCode.syncMcpConfig(useMCPStore.getState().servers)
-      } catch (error) {
-        console.warn('[Cowork] Could not sync MCP config to JCode:', error)
-      } finally {
-        recordPerformance('prompt.mcp-config-sync.complete', { durationMs: elapsedPerformanceMs(mcpSyncStartedAt) })
-      }
+      // JCode owns MCP configuration and tool execution. Do not synchronize
+      // Orbito's MCP store on every prompt; that adds startup latency and creates
+      // a second source of truth.
 
       // Create or reuse JCode session
       let pid = (useAppStore.getState().sessions.find(s => s.id === sid) as any)?.piId ?? null
