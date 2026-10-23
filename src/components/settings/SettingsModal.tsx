@@ -14,7 +14,7 @@ import { useMCPStore } from '../../stores/mcpStore'
 import { JCodeModelControls } from './JCodeModelControls'
 import { GlobalInstructionsSettings } from './GlobalInstructionsSettings'
 import { useSkillStore } from '../../stores/skillStore'
-import { probeJCode, runDoctor, updateRuntimeSettings, type JCodeDoctorResult, type JCodeRuntimeInfo, type JCodeRuntimeSettings } from '../../utils/jcodeClient'
+import { probeJCode, runDoctor, inspectJCodeConfig, updateRuntimeSettings, type JCodeConfigInspection, type JCodeDoctorResult, type JCodeRuntimeInfo, type JCodeRuntimeSettings } from '../../utils/jcodeClient'
 
 type JCodeStatus = { installed: boolean; path?: string; error?: string }
 
@@ -34,6 +34,22 @@ function JCodeRuntimeSettings() {
   const [doctor, setDoctor] = useState<JCodeDoctorResult | null>(null)
   const [diagnosing, setDiagnosing] = useState(false)
   const [doctorError, setDoctorError] = useState<string | null>(null)
+  const [configInspection, setConfigInspection] = useState<JCodeConfigInspection | null>(null)
+  const [inspectingConfig, setInspectingConfig] = useState(false)
+  const [inspectionError, setInspectionError] = useState<string | null>(null)
+
+  const inspectConfig = async () => {
+    setInspectingConfig(true)
+    setInspectionError(null)
+    try {
+      setConfigInspection(await inspectJCodeConfig())
+    } catch (error) {
+      setInspectionError(error instanceof Error ? error.message : String(error))
+      setConfigInspection(null)
+    } finally {
+      setInspectingConfig(false)
+    }
+  }
 
   const diagnose = async () => {
     setDiagnosing(true)
@@ -139,6 +155,53 @@ function JCodeRuntimeSettings() {
               {doctor.stderr && <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border bg-surface-secondary p-3 text-[11px] leading-5 text-red-600">{doctor.stderr}</pre>}
             </div>
           )}
+
+          <div className="mt-4 border-t border-border pt-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-[13px] font-semibold text-text">JCode configuration inspector</div>
+                <p className="mt-1 text-[12px] leading-5 text-text-tertiary">Read-only inspection starts in .jcode. Reports file metadata and selected settings only; it does not display credentials or modify files.</p>
+              </div>
+              <button onClick={() => void inspectConfig()} disabled={inspectingConfig} className="shrink-0 rounded-lg border border-border px-3 py-2 text-[12px] font-semibold text-text-secondary hover:bg-surface-secondary disabled:opacity-50">
+                {inspectingConfig ? 'Inspecting…' : 'Inspect .jcode'}
+              </button>
+            </div>
+            {inspectionError && <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-[12px] text-red-600">{inspectionError}</div>}
+            {configInspection && (
+              <div className="mt-3 space-y-3">
+                <div className="rounded-lg border border-border bg-surface-secondary p-3">
+                  <div className="text-[10px] uppercase tracking-widest text-text-tertiary">Configuration home</div>
+                  <div className="mt-1 break-all font-mono text-[12px] text-text-secondary">{configInspection.home}</div>
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px] text-text-secondary">
+                    <div>mcp_tools: <span className="font-mono">{configInspection.settings.mcpTools ?? 'not found'}</span></div>
+                    <div>Schema threshold: <span className="font-mono">{configInspection.settings.mcpToolsTokenThreshold ?? 'not found'}</span></div>
+                    <div>MCP servers in mcp.json: <span className="font-mono">{configInspection.settings.configuredMcpServers ?? 'unknown'}</span></div>
+                    <div>Managed entries: <span className="font-mono">{configInspection.settings.managedMcpServers ?? 'unknown'}</span></div>
+                    <div>Cached tool-array entries: <span className="font-mono">{configInspection.settings.cachedToolArrayEntries ?? 'unknown'}</span></div>
+                    <div>Context limit: <span className="font-mono">{configInspection.settings.contextLimit ?? 'unknown'}</span></div>
+                  </div>
+                </div>
+                <div className="overflow-auto rounded-lg border border-border">
+                  <div className="grid grid-cols-[minmax(120px,1fr)_72px_76px] gap-2 border-b border-border bg-surface-secondary px-3 py-2 text-[10px] uppercase tracking-wider text-text-tertiary">
+                    <span>File</span><span>Status</span><span>Size</span>
+                  </div>
+                  {configInspection.files.map((file) => (
+                    <div key={file.name} className="grid grid-cols-[minmax(120px,1fr)_72px_76px] gap-2 border-b border-border last:border-0 px-3 py-2 text-[11px]">
+                      <div className="min-w-0">
+                        <div className="break-all font-mono text-text-secondary">{file.name}</div>
+                        <div className="text-text-tertiary">{file.note}</div>
+                      </div>
+                      <span className={file.exists ? 'text-green-600' : 'text-text-tertiary'}>{file.exists ? 'Found' : 'Missing'}</span>
+                      <span className="text-text-tertiary">{file.bytes == null ? '—' : file.bytes.toLocaleString() + ' B'}</span>
+                    </div>
+                  ))}
+                </div>
+                <ul className="list-disc space-y-1 pl-5 text-[11px] leading-5 text-text-tertiary">
+                  {configInspection.interpretation.map((item, index) => <li key={index}>{item}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="rounded-xl border border-border bg-surface p-5">
