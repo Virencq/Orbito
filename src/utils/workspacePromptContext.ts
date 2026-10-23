@@ -29,7 +29,7 @@ export function buildWorkspacePromptContext(
   )
 
   if (project?.instructions?.trim()) {
-    blocks.push('## Project Instructions\\n' + project.instructions.trim())
+    blocks.push('## Project Instructions\n' + project.instructions.trim())
   }
 
   return {
