@@ -4,6 +4,7 @@ mod credential_store;
 mod jcode_acp;
 mod jcode_model_settings;
 mod jcode_instructions;
+mod jcode_config_inspector;
 mod mcp_manager;
 mod skill_installer;
 mod skills_cli;
@@ -101,6 +102,7 @@ pub fn run() {
             jcode_model_settings::jcode_set_model_effort,
             jcode_instructions::jcode_read_global_instructions,
             jcode_instructions::jcode_save_global_instructions,
+            jcode_config_inspector::jcode_inspect_config,
             agent_profiles::save_agent_profile_files,
             commands::list_directory,
             commands::read_text_file,
