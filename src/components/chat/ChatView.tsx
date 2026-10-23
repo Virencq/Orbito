@@ -659,7 +659,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
             </div>
           </div>
         )}
-        <div className="flex-1 min-h-0 relative bg-transparent">
+        <div className="flex-1 min-h-0 min-w-0 h-full flex flex-col overflow-hidden relative bg-transparent">
           {activeSessionId && session && !isEmpty && (
             <div className="relative z-20 flex h-12 shrink-0 items-center gap-2 border-b border-border/70 px-5 pr-24 text-[13px]">
               <button
