@@ -177,7 +177,7 @@ function JCodeRuntimeSettings() {
                     <div>Schema threshold: <span className="font-mono">{configInspection.settings.mcpToolsTokenThreshold ?? 'not found'}</span></div>
                     <div>MCP servers in mcp.json: <span className="font-mono">{configInspection.settings.configuredMcpServers ?? 'unknown'}</span></div>
                     <div>Managed entries: <span className="font-mono">{configInspection.settings.managedMcpServers ?? 'unknown'}</span></div>
-                    <div>Cached tool-array entries: <span className="font-mono">{configInspection.settings.cachedToolArrayEntries ?? 'unknown'}</span></div>
+                    <div>Cached tool entries: <span className="font-mono">{configInspection.settings.cachedToolArrayEntries ?? 'unknown'}</span></div>
                     <div>Context limit: <span className="font-mono">{configInspection.settings.contextLimit ?? 'unknown'}</span></div>
                   </div>
                 </div>
