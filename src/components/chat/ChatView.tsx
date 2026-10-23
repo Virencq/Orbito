@@ -680,6 +680,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
               </span>
             </div>
           )}
+          <div className="flex-1 min-h-0 min-w-0 relative overflow-hidden">
           <AnimatePresence mode="wait">
             {isEmpty ? (
               <motion.div
@@ -748,6 +749,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
               </motion.div>
             )}
           </AnimatePresence>
+          </div>
         </div>
         <div className={`bg-linear-to-t from-bg to-transparent pt-1 pb-2 shrink-0 ${isEmpty ? "hidden" : ""}`}>
           <div className="w-full max-w-none mx-auto relative px-1">
