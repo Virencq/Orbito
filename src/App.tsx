@@ -417,7 +417,7 @@ function App() {
                 </div>
               )}
               {hasVisitedCode && page === 'chat' && codeMode && (
-                <div className="min-w-0 flex-1 flex flex-col">
+                <div className="min-w-0 min-h-0 flex-1 flex flex-col overflow-hidden">
                   <Suspense fallback={<div className="min-h-0 flex-1" />}><CodeWorkspace /></Suspense>
                 </div>
               )}
