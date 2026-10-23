@@ -56,7 +56,7 @@ export function CodeWorkspace() {
     : 'No project')
 
   return (
-    <div className="code-workspace h-full min-h-0 flex flex-col bg-bg text-text">
+    <div className="code-workspace h-full min-h-0 min-w-0 flex-1 flex flex-col overflow-hidden bg-bg text-text">
       <header className="h-12 shrink-0 border-b border-border bg-surface flex items-center px-4">
         <div className="h-6 w-px bg-[#e8e3de] mr-3" />
 
