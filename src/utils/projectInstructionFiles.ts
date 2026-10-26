@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 
-const INSTRUCTION_FILES = ['AGENTS.md', 'CLAUDE.md', 'JCODE.md', 'jcode.md'] as const
+export const PROJECT_INSTRUCTION_FILE_NAMES = ['AGENTS.md', 'CLAUDE.md', 'JCODE.md', 'jcode.md'] as const
+export type ProjectInstructionFileName = typeof PROJECT_INSTRUCTION_FILE_NAMES[number]
 
 function joinPath(directory: string, fileName: string): string {
   const separator = directory.includes('\\') ? '\\' : '/'
@@ -13,17 +14,26 @@ export interface ProjectInstructionFile {
   content: string
 }
 
-/** Read supported project instruction files without requiring a particular agent runtime. */
+/**
+ * Read every supported instruction file. Distinct files are retained even when
+ * their contents differ so callers can show the sources and preserve each file.
+ * Exact duplicate contents are returned once to avoid injecting duplicate rules.
+ */
 export async function readProjectInstructionFiles(directory: string): Promise<ProjectInstructionFile[]> {
   const results: ProjectInstructionFile[] = []
-  const seen = new Set<string>()
-  for (const name of INSTRUCTION_FILES) {
+  const seenContents = new Set<string>()
+  const seenPaths = new Set<string>()
+  for (const name of PROJECT_INSTRUCTION_FILE_NAMES) {
     const path = joinPath(directory, name)
+    const normalizedPath = path.toLowerCase()
+    if (seenPaths.has(normalizedPath)) continue
+    seenPaths.add(normalizedPath)
     try {
       const content = await invoke<string>('read_text_file', { path })
-      if (content.trim() && !seen.has(content.trim())) {
-        seen.add(content.trim())
-        results.push({ name, path, content: content.trim() })
+      const normalizedContent = content.trim()
+      if (normalizedContent && !seenContents.has(normalizedContent)) {
+        seenContents.add(normalizedContent)
+        results.push({ name, path, content: normalizedContent })
       }
     } catch {
       // Missing optional instruction files are expected.
@@ -32,12 +42,23 @@ export async function readProjectInstructionFiles(directory: string): Promise<Pr
   return results
 }
 
-/** Save to the existing shared/legacy file when present; otherwise create JCODE.md. */
-export async function saveProjectInstructionFile(directory: string, content: string): Promise<ProjectInstructionFile> {
+/**
+ * Save to an explicitly selected file when provided. Otherwise prefer the
+ * shared AGENTS.md convention, then preserve an existing Claude/JCode file.
+ */
+export async function saveProjectInstructionFile(
+  directory: string,
+  content: string,
+  selectedName?: string,
+): Promise<ProjectInstructionFile> {
   const existing = await readProjectInstructionFiles(directory)
-  const targetName = existing.find((file) => file.name === 'AGENTS.md')?.name
-    ?? existing.find((file) => file.name === 'CLAUDE.md')?.name
-    ?? existing.find((file) => file.name === 'JCODE.md' || file.name === 'jcode.md')?.name
+  const supportedName = selectedName && PROJECT_INSTRUCTION_FILE_NAMES.includes(selectedName as ProjectInstructionFileName)
+    ? selectedName
+    : undefined
+  const targetName = supportedName
+    ?? existing.find((file) => file.name.toLowerCase() === 'agents.md')?.name
+    ?? existing.find((file) => file.name.toLowerCase() === 'claude.md')?.name
+    ?? existing.find((file) => file.name.toLowerCase() === 'jcode.md')?.name
     ?? 'JCODE.md'
   const path = joinPath(directory, targetName)
   await invoke('write_text_file', { path, content })
