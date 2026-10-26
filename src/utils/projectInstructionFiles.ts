@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 const INSTRUCTION_FILES = ['AGENTS.md', 'CLAUDE.md', 'JCODE.md'] as const
 
 function joinPath(directory: string, fileName: string): string {
-  const separator = directory.includes('\\\\') ? '\\\\' : '/'
+  const separator = directory.includes('\\') ? '\\' : '/''
   return `${directory.replace(/[\\\\/]+$/, '')}${separator}${fileName}`
 }
 
