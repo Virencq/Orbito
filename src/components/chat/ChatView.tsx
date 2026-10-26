@@ -280,9 +280,15 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
       // Read all supported project instruction files on every turn. Keep legacy
       // Claude instructions and shared AGENTS instructions active alongside JCode-specific
       // instructions; exact duplicate contents are de-duplicated by the shared loader.
-      const projectFileInstructionBlocks: string[] = workspaceDir
-        ? (await readProjectInstructionFiles(workspaceDir)).map((file) => `### ${file.name}\n${file.content}`)
-        : []
+      const projectFileInstructionBlocks: string[] = []
+      if (workspaceDir) {
+        const seenInstructionContents = new Set<string>()
+        for (const file of await readProjectInstructionFiles(workspaceDir)) {
+          if (seenInstructionContents.has(file.content)) continue
+          seenInstructionContents.add(file.content)
+          projectFileInstructionBlocks.push(`### ${file.name}\n${file.content}`)
+        }
+      }
 
       let enrichedContent = content
       const allContextBlocks = [...blocks, ...projectFileInstructionBlocks.map((block) => `## Project Instruction File\n${block}`)]
