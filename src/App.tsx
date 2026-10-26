@@ -208,6 +208,8 @@ function App() {
 
   const navigateToPage = useCallback((next: Page) => {
     if (next !== 'chat') setCodeMode(false)
+    // The project instructions panel belongs to chat; close it when opening the Projects list.
+    if (next === 'projects') setRightOpen(false)
     setPage((current) => {
       if (current === next) return current
       setPageHistory((history) => [...history.slice(0, historyIndex + 1), next])
