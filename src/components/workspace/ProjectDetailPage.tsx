@@ -38,7 +38,7 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
     if (!activeProject.path || activeProject.instructions?.trim()) return
     void readProjectInstructionFiles(activeProject.path).then((files) => {
       if (cancelled || files.length === 0) return
-      setInstructions(files.map((file) => `### ${file.name}\\n${file.content}`).join('\\n\\n'))
+      setInstructions(files[0].content)
     })
     return () => { cancelled = true }
   }, [activeProject.id, activeProject.path, activeProject.instructions])
