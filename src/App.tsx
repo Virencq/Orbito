@@ -143,11 +143,7 @@ function RightPanel({ width, onWidth, onClose, onAddScheduled, codeMode }: {
                 <span className="font-normal text-text-tertiary"> · {instructionFiles.find((file) => file.name === selectedInstructionFile)?.name || 'Orbito'}</span>
               )}
             </div>
-            {!editingInstructions && (
-              <div className="mt-0.5 text-[11px] text-text-tertiary truncate">
-                {instructionFiles.find((file) => file.name === selectedInstructionFile)?.path || 'Project instructions'}
-              </div>
-            )}
+
           </div>
           <button onClick={() => {
             const selectedFile = instructionFiles.find((file) => file.name === selectedInstructionFile)
