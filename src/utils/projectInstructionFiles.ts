@@ -17,11 +17,10 @@ export interface ProjectInstructionFile {
 /**
  * Read every supported instruction file. Distinct files are retained even when
  * their contents differ so callers can show the sources and preserve each file.
- * Exact duplicate contents are returned once to avoid injecting duplicate rules.
+ * Callers can de-duplicate prompt content separately while still showing every source.
  */
 export async function readProjectInstructionFiles(directory: string): Promise<ProjectInstructionFile[]> {
   const results: ProjectInstructionFile[] = []
-  const seenContents = new Set<string>()
   const seenPaths = new Set<string>()
   for (const name of PROJECT_INSTRUCTION_FILE_NAMES) {
     const path = joinPath(directory, name)
@@ -31,10 +30,7 @@ export async function readProjectInstructionFiles(directory: string): Promise<Pr
     try {
       const content = await invoke<string>('read_text_file', { path })
       const normalizedContent = content.trim()
-      if (normalizedContent && !seenContents.has(normalizedContent)) {
-        seenContents.add(normalizedContent)
-        results.push({ name, path, content: normalizedContent })
-      }
+      if (normalizedContent) results.push({ name, path, content: normalizedContent })
     } catch {
       // Missing optional instruction files are expected.
     }
