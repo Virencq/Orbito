@@ -89,7 +89,11 @@ pub fn write_text_file(path: String, content: String) -> Result<(), String> {
         return Err("Text files must be 1 MB or smaller".to_string());
     }
     let file_path = std::path::Path::new(&path);
-    if !file_path.is_file() && !file_path.parent().map(|parent| parent.is_dir()).unwrap_or(false) {
+    let file_name = file_path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+    if !matches!(file_name.to_ascii_lowercase().as_str(), "agents.md" | "claude.md" | "jcode.md") {
+        return Err("Only AGENTS.md, CLAUDE.md, or JCODE.md instruction files may be written by this command".to_string());
+    }
+    if !file_path.parent().map(|parent| parent.is_dir()).unwrap_or(false) {
         return Err("Parent directory does not exist".to_string());
     }
     std::fs::write(file_path, content.as_bytes()).map_err(|e| format!("Failed to write file: {e}"))
