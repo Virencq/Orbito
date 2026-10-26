@@ -284,7 +284,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         const instructionFiles = ['AGENTS.md', 'CLAUDE.md', 'JCODE.md', 'jcode.md']
         const seenContents = new Set<string>()
         for (const fileName of instructionFiles) {
-          const separator = workspaceDir.includes('\\') ? '\\' : '/''
+          const separator = workspaceDir.includes('\\') ? '\\' : '/'
           const filePath = `${workspaceDir.replace(/[\\\\/]+$/, '')}${separator}${fileName}`
           try {
             const fileContent = await invoke<string>('read_text_file', { path: filePath })
