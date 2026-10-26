@@ -5,6 +5,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../../stores'
 import { useWorkspaceStore, type CoworkProject } from '../../stores/workspaceStore'
 import { useTaskStore } from '../../stores/taskStore'
+import { readProjectInstructionFiles, saveProjectInstructionFile } from '../../utils/projectInstructionFiles'
 
 interface ProjectDetailPageProps {
   project: CoworkProject
@@ -31,6 +32,16 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
     // we can recover chats that mention this project's folder or name.
     for (const session of sessions) void loadMessages(session.id)
   }, [activeProject.id, sessionIdsSignature, loadMessages])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!activeProject.path || activeProject.instructions?.trim()) return
+    void readProjectInstructionFiles(activeProject.path).then((files) => {
+      if (cancelled || files.length === 0) return
+      setInstructions(files.map((file) => `### ${file.name}\\n${file.content}`).join('\\n\\n'))
+    })
+    return () => { cancelled = true }
+  }, [activeProject.id, activeProject.path, activeProject.instructions])
   const tasks = useTaskStore((s) => s.tasks)
   const projectSessions = useMemo(() => {
     const normalize = (value: string) => value.split(String.fromCharCode(92)).join('/').toLowerCase()
@@ -128,7 +139,7 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
           </div>
           {editingInstructions ? <div className="mt-3">
             <textarea autoFocus value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Add instructions to guide JCode on goals, style, constraints, and project conventions." className="min-h-[100px] w-full resize-y rounded-lg border border-[#3b3b36] bg-[#242422] p-3 text-[12px] leading-5 text-[#e9e7e2] outline-none focus:border-[#686860]"/>
-            <div className="mt-2 flex justify-end gap-2"><button onClick={() => { setInstructions(project.instructions || ''); setEditingInstructions(false) }} className="rounded-md px-2 py-1 text-[11px] text-[#b8b5ae]">Cancel</button><button onClick={() => { updateProject(activeProject.id, { instructions: instructions.trim() }); setEditingInstructions(false) }} className="rounded-md bg-[#393934] px-3 py-1 text-[11px] text-white">Save</button></div>
+            <div className="mt-2 flex justify-end gap-2"><button onClick={() => { setInstructions(project.instructions || ''); setEditingInstructions(false) }} className="rounded-md px-2 py-1 text-[11px] text-[#b8b5ae]">Cancel</button><button onClick={async () => { try { const value = instructions.trim(); if (activeProject.path) await saveProjectInstructionFile(activeProject.path, value); updateProject(activeProject.id, { instructions: value }); setEditingInstructions(false) } catch (error) { console.error('[Orbito] Could not save project instructions:', error); window.alert(`Could not save project instruction file: ${error instanceof Error ? error.message : String(error)}`) } }} className="rounded-md bg-[#393934] px-3 py-1 text-[11px] text-white">Save</button></div>
           </div> : <p className="mt-2 whitespace-pre-wrap text-[12px] leading-[1.55] text-[#a9a69e]">{project.instructions || 'Add instructions to guide JCode on goals, style, constraints, and project conventions.'}</p>}
         </div>
 
