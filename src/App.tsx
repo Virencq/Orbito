@@ -135,76 +135,86 @@ function RightPanel({ width, onWidth, onClose, onAddScheduled, codeMode }: {
       </div>
 
       <section className="border-b border-border">
-        <div className="px-3 py-2.5 flex items-center justify-between">
-          <div>
-            <div className="text-[13px] font-semibold text-text">Instructions</div>
-            <div className="mt-0.5 text-[11px] text-text-tertiary">Instructions for this project</div>
+        <div className="px-3 py-2.5 flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="text-[13px] font-semibold text-text">
+              Instructions
+              {(instructionFiles.find((file) => file.name === selectedInstructionFile)?.name || (project?.instructions?.trim() ? 'Orbito' : '')) && (
+                <span className="font-normal text-text-tertiary"> · {instructionFiles.find((file) => file.name === selectedInstructionFile)?.name || 'Orbito'}</span>
+              )}
+            </div>
+            {!editingInstructions && (
+              <div className="mt-0.5 text-[11px] text-text-tertiary truncate">
+                {instructionFiles.find((file) => file.name === selectedInstructionFile)?.path || 'Project instructions'}
+              </div>
+            )}
           </div>
           <button onClick={() => {
             const selectedFile = instructionFiles.find((file) => file.name === selectedInstructionFile)
             setDraftInstructions(selectedFile?.content ?? project?.instructions ?? '')
             setEditingInstructions(true)
-          }} className="h-8 w-8 rounded-md hover:bg-surface-hover grid place-items-center text-text-secondary" title={instructionFiles.length || project?.instructions ? 'Edit instructions' : 'Add instructions'}>
-            {instructionFiles.length || project?.instructions ? <Pencil size={15}/> : <Plus size={16}/>}
+          }} className="h-7 w-7 shrink-0 rounded-md hover:bg-surface-hover grid place-items-center text-text-secondary" title={editingInstructions ? 'Editing instructions' : instructionFiles.length || project?.instructions ? 'Edit instructions' : 'Add instructions'}>
+            {instructionFiles.length || project?.instructions ? <Pencil size={14}/> : <Plus size={15}/>}
           </button>
         </div>
         <div className="px-3 pb-3">
           {editingInstructions ? (
             <div>
-              <label className="mb-1 block text-[11px] text-text-tertiary">Save edits to</label>
+              <label className="mb-1 block text-[11px] text-text-tertiary">Instruction file</label>
               <select
                 value={selectedInstructionFile}
                 onChange={(event) => {
                   const nextName = event.target.value
                   setSelectedInstructionFile(nextName)
                   const selectedFile = instructionFiles.find((file) => file.name === nextName)
-                  if (selectedFile) setDraftInstructions(selectedFile.content)
+                  setDraftInstructions(selectedFile?.content ?? '')
                 }}
-                className="mb-2 w-full rounded-lg border border-border bg-surface-secondary p-2 text-[12px] text-text"
+                className="mb-2 w-full rounded-lg border border-border bg-surface-secondary px-2.5 py-2 text-[12px] text-text"
               >
                 {instructionFiles.map((file) => <option key={file.name} value={file.name}>{file.name}</option>)}
-                {!instructionFiles.some((file) => file.name === selectedInstructionFile) && <option value={selectedInstructionFile}>{selectedInstructionFile} (new)</option>}
+                {!instructionFiles.some((file) => file.name === selectedInstructionFile) && <option value={selectedInstructionFile}>{selectedInstructionFile} (new file)</option>}
               </select>
               <textarea
                 autoFocus
                 value={draftInstructions}
                 onChange={e => setDraftInstructions(e.target.value)}
                 placeholder="Tell JCode how to work in this project..."
-                className="w-full min-h-[110px] resize-y rounded-lg border border-border bg-surface-secondary p-2.5 text-[12px] leading-5 text-text outline-none focus:border-accent"
+                className="w-full min-h-[150px] max-h-[42vh] resize-y rounded-lg border border-border bg-surface-secondary p-2.5 text-[12px] leading-[1.55] text-text outline-none focus:border-accent"
               />
-              <div className="mt-1.5 flex justify-end gap-2">
-                <button onClick={() => setEditingInstructions(false)} className="rounded-lg px-3 py-1.5 text-[12px] text-text-secondary hover:bg-surface-hover">Cancel</button>
-                <button onClick={saveInstructions} className="rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white hover:opacity-90">Save</button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {instructionFiles.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {instructionFiles.map((file) => (
-                    <button
-                      key={file.name}
-                      onClick={() => { setSelectedInstructionFile(file.name); setDraftInstructions(file.content); setEditingInstructions(true) }}
-                      className="rounded-md border border-border bg-surface-secondary px-2 py-1 text-[10px] text-text-secondary hover:bg-surface-hover"
-                      title={`Edit ${file.name}`}
-                    >{file.name}</button>
-                  ))}
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <span className="text-[10px] text-text-tertiary">{draftInstructions.length.toLocaleString()} characters</span>
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setEditingInstructions(false)} className="rounded-lg px-3 py-1.5 text-[12px] text-text-secondary hover:bg-surface-hover">Cancel</button>
+                  <button onClick={saveInstructions} className="rounded-lg bg-accent px-3 py-1.5 text-[12px] font-semibold text-white hover:opacity-90">Save</button>
                 </div>
-              )}
+              </div>
               {instructionFiles.length > 1 && (
-                <p className="text-[11px] leading-[1.45] text-amber-600">
-                  Multiple instruction files are active and combined for each prompt. Review them for conflicting rules; Orbito preserves each file rather than silently replacing another.
+                <p className="mt-2 text-[10px] leading-[1.45] text-amber-600">
+                  Multiple instruction files are active together. Review them for conflicting rules.
                 </p>
               )}
-              {project?.instructions?.trim() && (
-                <div>
-                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">Saved in Orbito</div>
-                  <p className="text-[12px] leading-[1.55] text-text-secondary whitespace-pre-wrap">{project.instructions}</p>
-                </div>
-              )}
-              {instructionFiles.length === 0 && !project?.instructions?.trim() && (
-                <p className="text-[12px] leading-[1.55] text-text-secondary">Add instructions to guide JCode on goals, style, constraints, and project conventions.</p>
-              )}
+            </div>
+          ) : (
+            <div>
+              {(() => {
+                const activeFile = instructionFiles.find((file) => file.name === selectedInstructionFile) || instructionFiles[0]
+                const preview = activeFile?.content || project?.instructions?.trim() || ''
+                return preview ? (
+                  <button
+                    onClick={() => { setDraftInstructions(preview); setEditingInstructions(true) }}
+                    className="block w-full text-left rounded-md hover:bg-surface-hover/40 transition-colors"
+                    title="Click to edit project instructions"
+                  >
+                    <p className="text-[12px] leading-[1.55] text-text-secondary whitespace-pre-wrap break-words line-clamp-4">{preview}</p>
+                    {preview.length > 220 && <span className="mt-1 inline-block text-[10px] text-text-tertiary">Click to view and edit full instructions</span>}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { setDraftInstructions(''); setEditingInstructions(true) }}
+                    className="text-left text-[12px] leading-[1.55] text-text-tertiary hover:text-text-secondary"
+                  >No instructions yet. Click to add project instructions.</button>
+                )
+              })()}
             </div>
           )}
         </div>
