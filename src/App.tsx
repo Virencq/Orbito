@@ -413,7 +413,18 @@ function App() {
                   work on every chat/session update. Session history is persisted in SQLite. */}
               {page === 'chat' && !codeMode && (
                 <div className="min-w-0 min-h-0 flex-1 flex flex-col">
-                  <ChatView initialPrompt={queuedProjectPrompt} onInitialPromptHandled={handleInitialPromptHandled} onOpenProjects={() => navigateToPage('projects')} />
+                  <ChatView initialPrompt={queuedProjectPrompt} onInitialPromptHandled={handleInitialPromptHandled} onOpenProjects={() => {
+                    const sessionId = useAppStore.getState().activeSessionId
+                    const project = sessionId
+                      ? useWorkspaceStore.getState().projects.find((item) => item.sessionId === sessionId || item.sessionIds?.includes(sessionId))
+                      : undefined
+                    if (project) {
+                      setSelectedProject(project)
+                      navigateToPage('project-detail')
+                    } else {
+                      navigateToPage('projects')
+                    }
+                  }} />
                 </div>
               )}
               {hasVisitedCode && page === 'chat' && codeMode && (

@@ -577,17 +577,11 @@ export function ChatInput({
     const textarea = textareaRef.current
     if (!textarea) return
 
-    if (variant === 'hero') {
-      textarea.style.height = '64px'
-      textarea.style.minHeight = '64px'
-      textarea.style.maxHeight = '64px'
-      textarea.style.overflowY = 'auto'
-      return
-    }
-
-    textarea.style.minHeight = '52px'
-    textarea.style.maxHeight = '400px'
-    textarea.style.height = '52px'
+    const minHeight = variant === 'hero' ? 64 : 52
+    const maxHeight = 240
+    textarea.style.minHeight = `${minHeight}px`
+    textarea.style.maxHeight = `${maxHeight}px`
+    textarea.style.height = `${minHeight}px`
 
     if (!input.trim()) {
       textarea.style.overflowY = 'hidden'
@@ -595,8 +589,9 @@ export function ChatInput({
     }
 
     textarea.style.height = 'auto'
-    textarea.style.height = String(Math.max(52, Math.min(textarea.scrollHeight, 400))) + 'px'
-    textarea.style.overflowY = textarea.scrollHeight > 400 ? 'auto' : 'hidden'
+    const measuredHeight = Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight))
+    textarea.style.height = `${measuredHeight}px`
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
   }, [input, variant])
 
   const isHero = variant === 'hero'
@@ -736,7 +731,7 @@ export function ChatInput({
               </div>
             )}
 
-            <div className={isHero ? "flex flex-col px-3" : "flex items-end px-3"}>
+            <div className="flex flex-col px-3">
             <div className="flex-1">
               <TextField
                 value={input}
@@ -751,13 +746,13 @@ export function ChatInput({
                   onCompositionStart={handleCompositionStart}
                   onCompositionEnd={handleCompositionEnd}
                   placeholder={attachments.length > 0 ? t('chat.input.placeholderWithFiles') : (placeholder || t('chat.input.placeholder'))}
-                  className={`w-full bg-transparent hover:bg-transparent focus:!ring-0 focus:!outline-none shadow-none border-none px-4 py-3.5 text-[14px] font-medium leading-relaxed custom-scrollbar text-text placeholder:text-text-quaternary/60 resize-none selection:bg-accent/20 ${isHero ? '!h-16 !min-h-16 !max-h-16 overflow-y-auto' : 'min-h-[52px]'}`}
+                  className={`w-full bg-transparent hover:bg-transparent focus:!ring-0 focus:!outline-none shadow-none border-none px-4 py-3.5 text-[14px] font-medium leading-relaxed custom-scrollbar text-text placeholder:text-text-quaternary/60 resize-none selection:bg-accent/20 ${isHero ? '!min-h-16 !max-h-[240px] overflow-y-auto' : 'min-h-[52px] max-h-[240px]'}`}
                   rows={1}
                 />
               </TextField>
             </div>
 
-              <div className={isHero ? "w-full flex items-center justify-between h-11 px-1 border-t border-border" : "flex items-center p-2"}>
+              <div className="w-full min-h-11 flex items-center justify-between gap-2 px-1 border-t border-border">
                 {isHero ? (
                   <>
                     <div className="flex items-center gap-1">
@@ -872,7 +867,7 @@ export function ChatInput({
                         size="icon"
                         aria-label="Stop generating"
                         onClick={onAbort}
-                        className="w-9 h-9 rounded-lg animate-fade-in"
+                        className="ml-auto w-9 h-9 rounded-lg animate-fade-in"
                       >
                         <Square size={16} fill="currentColor" />
                       </Button>
