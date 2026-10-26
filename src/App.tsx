@@ -153,6 +153,31 @@ function RightPanel({ width, onWidth, onClose, onAddScheduled, codeMode }: {
             {instructionFiles.length || project?.instructions ? <Pencil size={14}/> : <Plus size={15}/>}
           </button>
         </div>
+        {!editingInstructions && (
+          <div className="px-3 pb-3">
+            {(() => {
+              const activeFile = instructionFiles.find((file) => file.name === selectedInstructionFile) || instructionFiles[0]
+              const instructionText = activeFile?.content || project?.instructions?.trim() || ''
+              if (!instructionText) {
+                return (
+                  <button
+                    onClick={() => { setDraftInstructions(''); setEditingInstructions(true) }}
+                    className="text-left text-[11px] text-text-tertiary hover:text-text-secondary"
+                  >Add instructions to tailor JCode's responses.</button>
+                )
+              }
+              const firstLine = instructionText.split(/\r?\n/).map((line) => line.trim()).find(Boolean) || ''
+              const summary = firstLine.length > 120 ? firstLine.slice(0, 117) + '…' : firstLine
+              return (
+                <button
+                  onClick={() => { setDraftInstructions(instructionText); setEditingInstructions(true) }}
+                  className="block w-full truncate text-left text-[11px] text-text-tertiary hover:text-text-secondary"
+                  title="Edit project instructions"
+                >{summary}</button>
+              )
+            })()}
+          </div>
+        )}
         {editingInstructions && (
           <div className="px-3 pb-3">
             <label className="mb-1 block text-[11px] text-text-tertiary">Instruction file</label>
