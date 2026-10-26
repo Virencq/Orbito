@@ -5,7 +5,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../../stores'
 import { useWorkspaceStore, type CoworkProject } from '../../stores/workspaceStore'
 import { useTaskStore } from '../../stores/taskStore'
-import { readProjectInstructionFiles, saveProjectInstructionFile } from '../../utils/projectInstructionFiles'
+import { readProjectInstructionFiles, saveProjectInstructionFile, type ProjectInstructionFile } from '../../utils/projectInstructionFiles'
 
 interface ProjectDetailPageProps {
   project: CoworkProject
@@ -20,6 +20,8 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
   const activeProject = useWorkspaceStore((s) => s.projects.find((item) => item.id === project.id) || project)
   const [editingInstructions, setEditingInstructions] = useState(false)
   const [instructions, setInstructions] = useState(project.instructions || '')
+  const [instructionFiles, setInstructionFiles] = useState<ProjectInstructionFile[]>([])
+  const [selectedInstructionFile, setSelectedInstructionFile] = useState('JCODE.md')
   const updateProject = useWorkspaceStore((s) => s.updateProject)
   const pinnedProjectIds = useWorkspaceStore((s) => s.pinnedProjectIds)
   const toggleProjectPin = useWorkspaceStore((s) => s.toggleProjectPin)
@@ -35,10 +37,21 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
 
   useEffect(() => {
     let cancelled = false
-    if (!activeProject.path || activeProject.instructions?.trim()) return
+    setEditingInstructions(false)
+    setInstructions(activeProject.instructions || '')
+    setInstructionFiles([])
+    setSelectedInstructionFile('JCODE.md')
+    if (!activeProject.path) return
     void readProjectInstructionFiles(activeProject.path).then((files) => {
-      if (cancelled || files.length === 0) return
-      setInstructions(files[0].content)
+      if (cancelled) return
+      setInstructionFiles(files)
+      const preferred = files.find((file) => file.name.toLowerCase() === 'agents.md')
+        ?? files.find((file) => file.name.toLowerCase() === 'claude.md')
+        ?? files.find((file) => file.name.toLowerCase() === 'jcode.md')
+      if (preferred) {
+        setSelectedInstructionFile(preferred.name)
+        if (!activeProject.instructions?.trim()) setInstructions(preferred.content)
+      }
     })
     return () => { cancelled = true }
   }, [activeProject.id, activeProject.path, activeProject.instructions])
@@ -138,9 +151,15 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
             <button onClick={() => setEditingInstructions((v) => !v)} className="rounded-md p-1.5 text-[#b8b5ae] hover:bg-[#2d2d29]" title="Edit instructions"><Pencil size={14}/></button>
           </div>
           {editingInstructions ? <div className="mt-3">
-            <textarea autoFocus value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Add instructions to guide JCode on goals, style, constraints, and project conventions." className="min-h-[100px] w-full resize-y rounded-lg border border-[#3b3b36] bg-[#242422] p-3 text-[12px] leading-5 text-[#e9e7e2] outline-none focus:border-[#686860]"/>
-            <div className="mt-2 flex justify-end gap-2"><button onClick={() => { setInstructions(project.instructions || ''); setEditingInstructions(false) }} className="rounded-md px-2 py-1 text-[11px] text-[#b8b5ae]">Cancel</button><button onClick={async () => { try { const value = instructions.trim(); if (activeProject.path) await saveProjectInstructionFile(activeProject.path, value); updateProject(activeProject.id, { instructions: value }); setEditingInstructions(false) } catch (error) { console.error('[Orbito] Could not save project instructions:', error); window.alert(`Could not save project instruction file: ${error instanceof Error ? error.message : String(error)}`) } }} className="rounded-md bg-[#393934] px-3 py-1 text-[11px] text-white">Save</button></div>
-          </div> : <p className="mt-2 whitespace-pre-wrap text-[12px] leading-[1.55] text-[#a9a69e]">{project.instructions || 'Add instructions to guide JCode on goals, style, constraints, and project conventions.'}</p>}
+            <select value={selectedInstructionFile} onChange={(event) => { const name = event.target.value; setSelectedInstructionFile(name); setInstructions(instructionFiles.find((file) => file.name === name)?.content || '') }} className="mb-2 w-full rounded-lg border border-[#3b3b36] bg-[#242422] px-2.5 py-2 text-[12px] text-[#e9e7e2]">
+              {instructionFiles.map((file) => <option key={file.name} value={file.name}>{file.name}</option>)}
+              {!instructionFiles.some((file) => file.name === selectedInstructionFile) && <option value={selectedInstructionFile}>{selectedInstructionFile} (new file)</option>}
+            </select>
+            <textarea autoFocus value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder="Add instructions to tailor JCode's responses." className="min-h-[100px] w-full resize-y rounded-lg border border-[#3b3b36] bg-[#242422] p-3 text-[12px] leading-5 text-[#e9e7e2] outline-none focus:border-[#686860]"/>
+            <div className="mt-2 flex justify-end gap-2"><button onClick={() => { setInstructions(instructionFiles.find((file) => file.name === selectedInstructionFile)?.content || project.instructions || ''); setEditingInstructions(false) }} className="rounded-md px-2 py-1 text-[11px] text-[#b8b5ae]">Cancel</button><button onClick={async () => { try { const value = instructions.trim(); if (activeProject.path) { await saveProjectInstructionFile(activeProject.path, value, selectedInstructionFile); setInstructionFiles(await readProjectInstructionFiles(activeProject.path)) } updateProject(activeProject.id, { instructions: value }); setEditingInstructions(false) } catch (error) { console.error('[Orbito] Could not save project instructions:', error); window.alert(`Could not save project instruction file: ${error instanceof Error ? error.message : String(error)}`) } }} className="rounded-md bg-[#393934] px-3 py-1 text-[11px] text-white">Save</button></div>
+          </div> : <button onClick={() => { const activeFile = instructionFiles.find((file) => file.name === selectedInstructionFile) || instructionFiles[0]; setInstructions(activeFile?.content || activeProject.instructions || ''); setEditingInstructions(true) }} className="mt-2 block w-full truncate text-left text-[12px] leading-[1.55] text-[#a9a69e] hover:text-[#e9e7e2]" title="Edit project instructions">
+            {(() => { const activeFile = instructionFiles.find((file) => file.name === selectedInstructionFile) || instructionFiles[0]; const text = activeFile?.content || activeProject.instructions?.trim() || ''; if (!text) return "Add instructions to tailor JCode's responses."; const firstLine = text.split(/\\r?\\n/).map((line) => line.trim()).find(Boolean) || ''; return firstLine.length > 120 ? firstLine.slice(0, 117) + '…' : firstLine })()}
+          </button>}
         </div>
 
         <div className="border-b border-[#33332f] px-5 py-4">
