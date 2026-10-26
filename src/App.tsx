@@ -21,6 +21,7 @@ import { useAgentStore } from './stores/agentStore'
 import { useWorkspaceStore, type CoworkProject } from './stores/workspaceStore'
 import { activateCodeProject } from './utils/codeProjectActions'
 import { projectPathsEqual } from './utils/projectPaths'
+import { saveProjectInstructionFile } from './utils/projectInstructionFiles'
 import { initDatabase } from './utils/database'
 import { getAllSessions, createSession as dbCreateSession, saveMessage as dbSaveMessage } from './utils/database'
 import { probeJCode } from './utils/jcodeClient'
@@ -75,12 +76,21 @@ function RightPanel({ width, onWidth, onClose, onAddScheduled, codeMode }: {
     setEditingInstructions(false)
   }, [codeMode, project?.id, project?.instructions])
 
-  const saveInstructions = () => {
+  const saveInstructions = async () => {
     if (project) {
-      if (codeMode) updateCodeProject(project.id, { instructions: draftInstructions.trim() })
-      else updateProject(project.id, { instructions: draftInstructions.trim() })
+      const value = draftInstructions.trim()
+      try {
+        if (project.path) await saveProjectInstructionFile(project.path, value)
+        if (codeMode) updateCodeProject(project.id, { instructions: value })
+        else updateProject(project.id, { instructions: value })
+        setEditingInstructions(false)
+      } catch (error) {
+        console.error('[Orbito] Could not save project instructions:', error)
+        window.alert(`Could not save project instruction file: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    } else {
+      setEditingInstructions(false)
     }
-    setEditingInstructions(false)
   }
 
   return (
