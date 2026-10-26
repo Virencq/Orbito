@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 
-const INSTRUCTION_FILES = ['AGENTS.md', 'CLAUDE.md', 'JCODE.md'] as const
+const INSTRUCTION_FILES = ['AGENTS.md', 'CLAUDE.md', 'JCODE.md', 'jcode.md'] as const
 
 function joinPath(directory: string, fileName: string): string {
   const separator = directory.includes('\\') ? '\\' : '/'
@@ -37,7 +37,7 @@ export async function saveProjectInstructionFile(directory: string, content: str
   const existing = await readProjectInstructionFiles(directory)
   const targetName = existing.find((file) => file.name === 'AGENTS.md')?.name
     ?? existing.find((file) => file.name === 'CLAUDE.md')?.name
-    ?? existing.find((file) => file.name === 'JCODE.md')?.name
+    ?? existing.find((file) => file.name === 'JCODE.md' || file.name === 'jcode.md')?.name
     ?? 'JCODE.md'
   const path = joinPath(directory, targetName)
   await invoke('write_text_file', { path, content })
