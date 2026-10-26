@@ -21,7 +21,7 @@ import { useAgentStore } from './stores/agentStore'
 import { useWorkspaceStore, type CoworkProject } from './stores/workspaceStore'
 import { activateCodeProject } from './utils/codeProjectActions'
 import { projectPathsEqual } from './utils/projectPaths'
-import { saveProjectInstructionFile } from './utils/projectInstructionFiles'
+import { readProjectInstructionFiles, saveProjectInstructionFile } from './utils/projectInstructionFiles'
 import { initDatabase } from './utils/database'
 import { getAllSessions, createSession as dbCreateSession, saveMessage as dbSaveMessage } from './utils/database'
 import { probeJCode } from './utils/jcodeClient'
@@ -72,9 +72,15 @@ function RightPanel({ width, onWidth, onClose, onAddScheduled, codeMode }: {
   const [draftInstructions, setDraftInstructions] = useState(project?.instructions || '')
 
   useEffect(() => {
+    let cancelled = false
     setDraftInstructions(project?.instructions || '')
     setEditingInstructions(false)
-  }, [codeMode, project?.id, project?.instructions])
+    if (!project?.path || project.instructions?.trim()) return
+    void readProjectInstructionFiles(project.path).then((files) => {
+      if (!cancelled && files.length > 0) setDraftInstructions(files[0].content)
+    })
+    return () => { cancelled = true }
+  }, [codeMode, project?.id, project?.path, project?.instructions])
 
   const saveInstructions = async () => {
     if (project) {
