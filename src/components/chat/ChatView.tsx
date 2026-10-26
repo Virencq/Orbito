@@ -281,9 +281,10 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
       // Claude instructions and shared AGENTS instructions active alongside JCode-specific
       // instructions; exact duplicate contents are de-duplicated by the shared loader.
       const projectFileInstructionBlocks: string[] = []
-      if (workspaceDir) {
+      const projectInstructionDirectory = activeProject?.path || workspaceDir
+      if (projectInstructionDirectory) {
         const seenInstructionContents = new Set<string>()
-        for (const file of await readProjectInstructionFiles(workspaceDir)) {
+        for (const file of await readProjectInstructionFiles(projectInstructionDirectory)) {
           if (seenInstructionContents.has(file.content)) continue
           seenInstructionContents.add(file.content)
           projectFileInstructionBlocks.push(`### ${file.name}\n${file.content}`)
