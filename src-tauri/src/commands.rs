@@ -82,6 +82,23 @@ pub fn read_text_file(path: String) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {e}"))
 }
 
+/// Write a UTF-8 text file. Used for project instruction files edited in Orbito.
+#[tauri::command]
+pub fn write_text_file(path: String, content: String) -> Result<(), String> {
+    if content.len() > 1_000_000 {
+        return Err("Text files must be 1 MB or smaller".to_string());
+    }
+    let file_path = std::path::Path::new(&path);
+    let file_name = file_path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+    if !matches!(file_name.to_ascii_lowercase().as_str(), "agents.md" | "claude.md" | "jcode.md") {
+        return Err("Only AGENTS.md, CLAUDE.md, or JCODE.md instruction files may be written by this command".to_string());
+    }
+    if !file_path.parent().map(|parent| parent.is_dir()).unwrap_or(false) {
+        return Err("Parent directory does not exist".to_string());
+    }
+    std::fs::write(file_path, content.as_bytes()).map_err(|e| format!("Failed to write file: {e}"))
+}
+
 /// Read a binary file and return its contents as base64
 #[tauri::command]
 pub fn read_file_base64(path: String) -> Result<String, String> {
