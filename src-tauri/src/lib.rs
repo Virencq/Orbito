@@ -106,6 +106,7 @@ pub fn run() {
             agent_profiles::save_agent_profile_files,
             commands::list_directory,
             commands::read_text_file,
+            commands::write_text_file,
             commands::read_file_base64,
             commands::scan_skill_files,
             commands::parse_skill_file,
