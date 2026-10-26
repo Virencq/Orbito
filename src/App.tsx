@@ -21,7 +21,7 @@ import { useAgentStore } from './stores/agentStore'
 import { useWorkspaceStore, type CoworkProject } from './stores/workspaceStore'
 import { activateCodeProject } from './utils/codeProjectActions'
 import { projectPathsEqual } from './utils/projectPaths'
-import { readProjectInstructionFiles, saveProjectInstructionFile } from './utils/projectInstructionFiles'
+import { readProjectInstructionFiles, saveProjectInstructionFile, type ProjectInstructionFile } from './utils/projectInstructionFiles'
 import { initDatabase } from './utils/database'
 import { getAllSessions, createSession as dbCreateSession, saveMessage as dbSaveMessage } from './utils/database'
 import { probeJCode } from './utils/jcodeClient'
@@ -70,14 +70,26 @@ function RightPanel({ width, onWidth, onClose, onAddScheduled, codeMode }: {
     : projects.find((p) => p.path && workspaceDir && projectPathsEqual(p.path, workspaceDir))
   const [editingInstructions, setEditingInstructions] = useState(false)
   const [draftInstructions, setDraftInstructions] = useState(project?.instructions || '')
+  const [instructionFiles, setInstructionFiles] = useState<ProjectInstructionFile[]>([])
+  const [selectedInstructionFile, setSelectedInstructionFile] = useState('JCODE.md')
 
   useEffect(() => {
     let cancelled = false
     setDraftInstructions(project?.instructions || '')
     setEditingInstructions(false)
-    if (!project?.path || project.instructions?.trim()) return
+    setInstructionFiles([])
+    setSelectedInstructionFile('JCODE.md')
+    if (!project?.path) return
     void readProjectInstructionFiles(project.path).then((files) => {
-      if (!cancelled && files.length > 0) setDraftInstructions(files[0].content)
+      if (cancelled) return
+      setInstructionFiles(files)
+      const preferred = files.find((file) => file.name.toLowerCase() === 'agents.md')
+        ?? files.find((file) => file.name.toLowerCase() === 'claude.md')
+        ?? files.find((file) => file.name.toLowerCase() === 'jcode.md')
+      if (preferred) {
+        setSelectedInstructionFile(preferred.name)
+        if (!project.instructions?.trim()) setDraftInstructions(preferred.content)
+      }
     })
     return () => { cancelled = true }
   }, [codeMode, project?.id, project?.path, project?.instructions])
@@ -86,9 +98,21 @@ function RightPanel({ width, onWidth, onClose, onAddScheduled, codeMode }: {
     if (project) {
       const value = draftInstructions.trim()
       try {
-        if (project.path) await saveProjectInstructionFile(project.path, value)
-        if (codeMode) updateCodeProject(project.id, { instructions: value })
-        else updateProject(project.id, { instructions: value })
+        if (project.path) {
+          await saveProjectInstructionFile(project.path, value, selectedInstructionFile)
+          const refreshedFiles = await readProjectInstructionFiles(project.path)
+          setInstructionFiles(refreshedFiles)
+          // Preserve legacy Orbito-local instructions during migration. Only seed
+          // the local store when this project had no instruction file beforehand.
+          if (instructionFiles.length === 0) {
+            if (codeMode) updateCodeProject(project.id, { instructions: value })
+            else updateProject(project.id, { instructions: value })
+          }
+        } else if (codeMode) {
+          updateCodeProject(project.id, { instructions: value })
+        } else {
+          updateProject(project.id, { instructions: value })
+        }
         setEditingInstructions(false)
       } catch (error) {
         console.error('[Orbito] Could not save project instructions:', error)
@@ -116,13 +140,31 @@ function RightPanel({ width, onWidth, onClose, onAddScheduled, codeMode }: {
             <div className="text-[13px] font-semibold text-text">Instructions</div>
             <div className="mt-0.5 text-[11px] text-text-tertiary">Instructions for this project</div>
           </div>
-          <button onClick={() => { setDraftInstructions(project?.instructions || ''); setEditingInstructions(true) }} className="h-8 w-8 rounded-md hover:bg-surface-hover grid place-items-center text-text-secondary" title={project?.instructions ? 'Edit instructions' : 'Add instructions'}>
-            {project?.instructions ? <Pencil size={15}/> : <Plus size={16}/>}
+          <button onClick={() => {
+            const selectedFile = instructionFiles.find((file) => file.name === selectedInstructionFile)
+            setDraftInstructions(selectedFile?.content ?? project?.instructions ?? '')
+            setEditingInstructions(true)
+          }} className="h-8 w-8 rounded-md hover:bg-surface-hover grid place-items-center text-text-secondary" title={instructionFiles.length || project?.instructions ? 'Edit instructions' : 'Add instructions'}>
+            {instructionFiles.length || project?.instructions ? <Pencil size={15}/> : <Plus size={16}/>}
           </button>
         </div>
         <div className="px-3 pb-3">
           {editingInstructions ? (
             <div>
+              <label className="mb-1 block text-[11px] text-text-tertiary">Save edits to</label>
+              <select
+                value={selectedInstructionFile}
+                onChange={(event) => {
+                  const nextName = event.target.value
+                  setSelectedInstructionFile(nextName)
+                  const selectedFile = instructionFiles.find((file) => file.name === nextName)
+                  if (selectedFile) setDraftInstructions(selectedFile.content)
+                }}
+                className="mb-2 w-full rounded-lg border border-border bg-surface-secondary p-2 text-[12px] text-text"
+              >
+                {instructionFiles.map((file) => <option key={file.name} value={file.name}>{file.name}</option>)}
+                {!instructionFiles.some((file) => file.name === selectedInstructionFile) && <option value={selectedInstructionFile}>{selectedInstructionFile} (new)</option>}
+              </select>
               <textarea
                 autoFocus
                 value={draftInstructions}
@@ -136,9 +178,34 @@ function RightPanel({ width, onWidth, onClose, onAddScheduled, codeMode }: {
               </div>
             </div>
           ) : (
-            <p className="text-[12px] leading-[1.55] text-text-secondary whitespace-pre-wrap">
-              {project?.instructions || 'Add instructions to guide JCode on goals, style, constraints, and project conventions.'}
-            </p>
+            <div className="space-y-2">
+              {instructionFiles.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {instructionFiles.map((file) => (
+                    <button
+                      key={file.name}
+                      onClick={() => { setSelectedInstructionFile(file.name); setDraftInstructions(file.content); setEditingInstructions(true) }}
+                      className="rounded-md border border-border bg-surface-secondary px-2 py-1 text-[10px] text-text-secondary hover:bg-surface-hover"
+                      title={`Edit ${file.name}`}
+                    >{file.name}</button>
+                  ))}
+                </div>
+              )}
+              {instructionFiles.length > 1 && (
+                <p className="text-[11px] leading-[1.45] text-amber-600">
+                  Multiple instruction files are active and combined for each prompt. Review them for conflicting rules; Orbito preserves each file rather than silently replacing another.
+                </p>
+              )}
+              {project?.instructions?.trim() && (
+                <div>
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-tertiary">Saved in Orbito</div>
+                  <p className="text-[12px] leading-[1.55] text-text-secondary whitespace-pre-wrap">{project.instructions}</p>
+                </div>
+              )}
+              {instructionFiles.length === 0 && !project?.instructions?.trim() && (
+                <p className="text-[12px] leading-[1.55] text-text-secondary">Add instructions to guide JCode on goals, style, constraints, and project conventions.</p>
+              )}
+            </div>
           )}
         </div>
       </section>
