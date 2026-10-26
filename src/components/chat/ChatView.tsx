@@ -276,11 +276,34 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         workspaceDir,
         activeAgent ?? null,
       )
-      let enrichedContent = content
+      // Read instruction files from the actual project directory on every turn.
+      // This keeps existing Claude Cowork repositories compatible and avoids
+      // relying exclusively on instructions stored in Orbito's local project metadata.
+      const projectFileInstructionBlocks: string[] = []
+      if (workspaceDir) {
+        const instructionFiles = ['AGENTS.md', 'CLAUDE.md', 'JCODE.md', 'jcode.md']
+        const seenContents = new Set<string>()
+        for (const fileName of instructionFiles) {
+          const separator = workspaceDir.includes('\\\\') ? '\\\\' : '/'
+          const filePath = `${workspaceDir.replace(/[\\\\/]+$/, '')}${separator}${fileName}`
+          try {
+            const fileContent = await invoke<string>('read_text_file', { path: filePath })
+            const normalized = fileContent.trim()
+            if (normalized && !seenContents.has(normalized)) {
+              seenContents.add(normalized)
+              projectFileInstructionBlocks.push(`### ${fileName}\n${normalized}`)
+            }
+          } catch {
+            // A missing optional instruction file is normal; continue to the next filename.
+          }
+        }
+      }
 
-      if (blocks.length > 0) {
+      let enrichedContent = content
+      const allContextBlocks = [...blocks, ...projectFileInstructionBlocks.map((block) => `## Project Instruction File\n${block}`)]
+      if (allContextBlocks.length > 0) {
         const header = activeAgent ? `[Agent: ${activeAgent.name}]` : '[Global Context]'
-        enrichedContent = `${header}\n---\n${blocks.join('\n\n')}\n---\n\n${content}`
+        enrichedContent = `${header}\n---\n${allContextBlocks.join('\n\n')}\n---\n\n${content}`
       }
 
       // Optional UI hints are forwarded to the JCode adapter when present.
