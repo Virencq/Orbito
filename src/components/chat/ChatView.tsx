@@ -23,6 +23,7 @@ import type { KiloMessage } from '../../types'
 import { motion, AnimatePresence } from 'framer-motion'
 import { assembleAgentSystemPrompt } from '../../utils/agentPrompt'
 import { buildWorkspacePromptContext } from '../../utils/workspacePromptContext'
+import { readProjectInstructionFiles } from '../../utils/projectInstructionFiles'
 import {
   assembleAgentRuntimePrompt,
   formatAgentSkillsBlock,
@@ -276,28 +277,12 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         workspaceDir,
         activeAgent ?? null,
       )
-      // Read instruction files from the actual project directory on every turn.
-      // This keeps existing Claude Cowork repositories compatible and avoids
-      // relying exclusively on instructions stored in Orbito's local project metadata.
-      const projectFileInstructionBlocks: string[] = []
-      if (workspaceDir) {
-        const instructionFiles = ['AGENTS.md', 'CLAUDE.md', 'JCODE.md', 'jcode.md']
-        const seenContents = new Set<string>()
-        for (const fileName of instructionFiles) {
-          const separator = workspaceDir.includes('\\') ? '\\' : '/'
-          const filePath = `${workspaceDir.replace(/[\\\\/]+$/, '')}${separator}${fileName}`
-          try {
-            const fileContent = await invoke<string>('read_text_file', { path: filePath })
-            const normalized = fileContent.trim()
-            if (normalized && !seenContents.has(normalized)) {
-              seenContents.add(normalized)
-              projectFileInstructionBlocks.push(`### ${fileName}\n${normalized}`)
-            }
-          } catch {
-            // A missing optional instruction file is normal; continue to the next filename.
-          }
-        }
-      }
+      // Read all supported project instruction files on every turn. Keep legacy
+      // Claude instructions and shared AGENTS instructions active alongside JCode-specific
+      // instructions; exact duplicate contents are de-duplicated by the shared loader.
+      const projectFileInstructionBlocks: string[] = workspaceDir
+        ? (await readProjectInstructionFiles(workspaceDir)).map((file) => `### ${file.name}\n${file.content}`)
+        : []
 
       let enrichedContent = content
       const allContextBlocks = [...blocks, ...projectFileInstructionBlocks.map((block) => `## Project Instruction File\n${block}`)]
