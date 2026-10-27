@@ -283,6 +283,7 @@ function App() {
     setQueuedProjectPrompt((current) => current?.id === id ? null : current)
   }, [])
   const [showSettings, setShowSettings] = useState(false)
+  const [settingsInitialTab, setSettingsInitialTab] = useState('provider')
   const [leftWidth, setLeftWidth] = useState(() => Number(localStorage.getItem('cowork-left-width')) || 200)
   const [rightWidth, setRightWidth] = useState(() => {
     const saved = Number(localStorage.getItem('cowork-right-width')) || 280
@@ -343,7 +344,11 @@ function App() {
   }, [])
 
   useEffect(() => {
-    const openSettings = () => setShowSettings(true)
+    const openSettings = (event: Event) => {
+      const requestedTab = (event as CustomEvent<string>).detail
+      setSettingsInitialTab(requestedTab === 'voice' ? 'voice' : 'provider')
+      setShowSettings(true)
+    }
     window.addEventListener('orbito:open-settings', openSettings)
     return () => window.removeEventListener('orbito:open-settings', openSettings)
   }, [])
@@ -592,7 +597,7 @@ function App() {
       )}
       {showSettings && (
         <Suspense fallback={null}>
-          <SettingsModal open initialTab="provider" onClose={() => setShowSettings(false)} />
+          <SettingsModal open initialTab={settingsInitialTab} onClose={() => setShowSettings(false)} />
         </Suspense>
       )}
     </div>
