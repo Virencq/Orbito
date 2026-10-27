@@ -548,9 +548,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
       setIsDragOver(false)
     }
   }, [handleSubmit, workspaceMode, createModeSession])
-  const streamingMessages = useAppStore((state) => state.streamingMessage)
-  const streamingMessage = activeSessionId ? streamingMessages[activeSessionId] : EMPTY_STREAMING
-  const isStreaming = streamingMessage?.isStreaming ?? false
+  const isStreaming = useAppStore((state) => !!(activeSessionId && state.streamingMessage[activeSessionId]?.isStreaming))
 
   const filePreview = useFilePreviewStore((s) => s.preview)
 

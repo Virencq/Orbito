@@ -47,7 +47,7 @@ export function Sidebar({
 }: SidebarProps) {
   const sessions = useAppStore((s) => s.sessions)
   const activeSessionId = useAppStore((s) => s.activeSessionId)
-  const streamingMessage = useAppStore((s) => s.streamingMessage)
+  const streamingBySession = useAppStore(useShallow((s) => Object.fromEntries(s.sessions.map((session) => [session.id, !!s.streamingBySession[session.id]]))))
   const setActiveSession = useAppStore((s) => s.setActiveSession)
   const createSession = useAppStore((s) => s.createSession)
   const deleteSession = useAppStore((s) => s.deleteSession)
@@ -296,7 +296,7 @@ export function Sidebar({
         <div className="flex-1 overflow-y-auto px-3 pb-3 pt-1 scrollbar-subtle space-y-0.5">
           {sessions.map((session) => {
           const isActive = session.id === activeSessionId
-          const isStreaming = streamingMessage[session.id]?.isStreaming ?? false
+          const isStreaming = streamingBySession[session.id] ?? false
           const title = session.title || t('sidebar.untitled')
           const isPlatformSession = session.source === 'platform'
           const sessionBadge = session.sourceLabel || (session.readOnly ? t('chat.session.readOnly') : '')
