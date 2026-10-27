@@ -341,6 +341,10 @@ export async function prompt(sessionId: string, text: string, options: JCodeProm
       sessionId,
       prompt: finalPrompt,
       ...(options.images?.length ? { images: options.images } : {}),
+      ...(options.permissionMode !== undefined ? { permissionMode: options.permissionMode } : {}),
+      ...(options.permissionRules !== undefined ? { permissionRules: options.permissionRules } : {}),
+      ...(options.workspaceRoots !== undefined ? { workspaceRoots: options.workspaceRoots } : {}),
+      ...(options.webSearchConfig !== undefined ? { webSearchConfig: options.webSearchConfig } : {}),
     })
   } catch (error) {
     unlisten?.()

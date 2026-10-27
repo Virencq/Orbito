@@ -272,6 +272,10 @@ pub fn jcode_prompt(
     session_id: String,
     prompt: String,
     images: Option<Vec<PromptImage>>,
+    permission_mode: Option<String>,
+    permission_rules: Option<Value>,
+    workspace_roots: Option<Value>,
+    web_search_config: Option<Value>,
 ) -> Result<(), String> {
     let sessions = state.0.lock().map_err(|e| e.to_string())?;
     let session = sessions.get(&session_id).ok_or_else(|| format!("JCode session not found: {session_id}"))?;
@@ -295,10 +299,15 @@ pub fn jcode_prompt(
     }
 
     let request_id = session.next_request_id.fetch_add(1, Ordering::Relaxed);
-    send_rpc(&session.stdin, request_id, "session/prompt", json!({
+    let mut params = json!({
         "sessionId": session.session_id,
         "prompt": content
-    }))?;
+    });
+    if let Some(value) = permission_mode { params["permissionMode"] = json!(value); }
+    if let Some(value) = permission_rules { params["permissionRules"] = value; }
+    if let Some(value) = workspace_roots { params["workspaceRoots"] = value; }
+    if let Some(value) = web_search_config { params["webSearchConfig"] = value; }
+    send_rpc(&session.stdin, request_id, "session/prompt", params)?;
     // ACP is streamed: return immediately after the request is written.
     // The background reader forwards session/update chunks and the final
     // session/prompt response to the frontend through jcode://event.
