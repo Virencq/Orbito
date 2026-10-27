@@ -6,6 +6,7 @@ import {
   Search, Settings, Sparkles, X, SlidersHorizontal, MoreHorizontal, Pin, Pencil,
   Trash2, MailOpen, Check,
 } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
 import { useAppStore } from '../../stores'
 import { useWorkspaceStore } from '../../stores/workspaceStore'
 import { useFilePreviewStore } from '../../stores/filePreviewStore'
