@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - security/phase-1-t1-csp
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
