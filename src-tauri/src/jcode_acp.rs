@@ -201,7 +201,7 @@ fn start_reader(
                 }
             }
             if value.get("method").and_then(Value::as_str).is_some() || value.get("result").is_some() || value.get("error").is_some() {
-                let _ = app.emit("jcode://event", JCodeEvent { session_id: session_key.clone(), event: value });
+                let _ = app.emit_to("main", "jcode://event", JCodeEvent { session_id: session_key.clone(), event: value });
             }
         }
         // Remove and reap a process that exited unexpectedly so later prompts
@@ -210,7 +210,7 @@ fn start_reader(
         if let Some(mut session) = exited {
             let _ = session.child.wait();
         }
-        let _ = app.emit("jcode://event", JCodeEvent {
+        let _ = app.emit_to("main", "jcode://event", JCodeEvent {
             session_id: session_key,
             event: json!({"method":"session/closed","params":{"reason":"JCode ACP process exited"}}),
         });
