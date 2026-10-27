@@ -6,8 +6,7 @@
 
 use std::{
     fs,
-    io::{Read, Write},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
         mpsc::{self, Receiver, Sender},
@@ -21,9 +20,14 @@ use cpal::{
     SampleFormat, Stream, StreamConfig,
 };
 use serde::Serialize;
+#[cfg(not(target_os = "windows"))]
+use std::{io::{Read, Write}, path::Path};
+#[cfg(not(target_os = "windows"))]
 use sha2::{Digest, Sha256};
+#[cfg(not(target_os = "windows"))]
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
+#[cfg(not(target_os = "windows"))]
 mod download;
 mod playback;
 mod realtime;
@@ -37,12 +41,15 @@ pub use voice_assets::{VoiceAssetKind, VoiceAssetProgress, VoiceAssetStatus, Voi
 
 /// Multilingual Whisper Base supports Chinese and English while keeping the download around 141 MiB.
 pub const DEFAULT_MODEL_FILE: &str = "ggml-base.bin";
+#[cfg(not(target_os = "windows"))]
 pub const DEFAULT_MODEL_URL: &str =
     "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin";
+#[cfg(not(target_os = "windows"))]
 pub const DEFAULT_MODEL_BYTES: u64 = 147_951_465;
+#[cfg(not(target_os = "windows"))]
 pub const DEFAULT_MODEL_SHA256: &str =
     "60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe";
-const WHISPER_SAMPLE_RATE: u32 = 16_000;
+const SPEECH_SAMPLE_RATE: u32 = 16_000;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DictationStatus {
@@ -114,21 +121,45 @@ impl Dictation {
     }
 
     pub fn status(&self) -> DictationStatus {
-        let model_installed = self.model_path.is_file();
-        let model_verified = model_installed
-            && model_verification_marker_matches(&self.model_path, &self.verified_marker_path);
-        DictationStatus {
-            recording: self.recording.lock().map(|value| *value).unwrap_or(false),
-            model_installed,
-            model_verified,
-            test_passed: model_verified && self.ready_marker_path.is_file(),
-            download_in_progress: self.download_in_progress.load(Ordering::SeqCst),
-            model_name: "Whisper Base Multilingual (local)",
-            model_bytes: DEFAULT_MODEL_BYTES,
+        #[cfg(target_os = "windows")]
+        {
+            DictationStatus {
+                recording: self.recording.lock().map(|value| *value).unwrap_or(false),
+                model_installed: true,
+                model_verified: true,
+                test_passed: self.ready_marker_path.is_file(),
+                download_in_progress: false,
+                model_name: "Windows SAPI (installed speech engine)",
+                model_bytes: 0,
+            }
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let model_installed = self.model_path.is_file();
+            let model_verified = model_installed
+                && model_verification_marker_matches(&self.model_path, &self.verified_marker_path);
+            DictationStatus {
+                recording: self.recording.lock().map(|value| *value).unwrap_or(false),
+                model_installed,
+                model_verified,
+                test_passed: model_verified && self.ready_marker_path.is_file(),
+                download_in_progress: self.download_in_progress.load(Ordering::SeqCst),
+                model_name: "Whisper Base Multilingual (local)",
+                model_bytes: DEFAULT_MODEL_BYTES,
+            }
         }
     }
 
+    #[cfg(target_os = "windows")]
     pub fn install_default_model_with_progress(
+        &self,
+        _on_progress: impl FnMut(DownloadProgress),
+    ) -> Result<(), String> {
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+pub fn install_default_model_with_progress(
         &self,
         mut on_progress: impl FnMut(DownloadProgress),
     ) -> Result<(), String> {
@@ -221,7 +252,13 @@ impl Dictation {
         result
     }
 
+    #[cfg(target_os = "windows")]
     pub fn verify_default_model(&self) -> Result<(), String> {
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+pub fn verify_default_model(&self) -> Result<(), String> {
         verify_model_file(&self.model_path)?;
         write_verification_marker(&self.model_path, &self.verified_marker_path)
     }
@@ -283,10 +320,20 @@ impl Dictation {
             return Ok(String::new());
         }
         let samples = resample_mono(&samples, sample_rate);
-        let Some(samples) = prepare_audio_for_whisper(&samples) else {
-            return Ok(String::new());
-        };
-        transcribe(&self.model_path, &samples)
+        #[cfg(target_os = "windows")]
+        {
+            let Some(samples) = prepare_audio_for_sapi(&samples) else {
+                return Ok(String::new());
+            };
+            transcribe_with_sapi(&samples)
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let Some(samples) = prepare_audio_for_whisper(&samples) else {
+                return Ok(String::new());
+            };
+            transcribe(&self.model_path, &samples)
+        }
     }
 
     pub fn input_level(&self) -> f32 {
@@ -318,6 +365,7 @@ impl Dictation {
     }
 }
 
+#[cfg(not(target_os = "windows"))]
 fn verify_model_file(path: &Path) -> Result<(), String> {
     let metadata = fs::metadata(path)
         .map_err(|error| format!("Could not read the local voice model: {error}"))?;
@@ -351,6 +399,7 @@ fn verify_model_file(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(not(target_os = "windows"))]
 fn model_modified_millis(path: &Path) -> Option<u128> {
     fs::metadata(path)
         .ok()?
@@ -361,6 +410,7 @@ fn model_modified_millis(path: &Path) -> Option<u128> {
         .map(|duration| duration.as_millis())
 }
 
+#[cfg(not(target_os = "windows"))]
 fn write_verification_marker(model_path: &Path, marker_path: &Path) -> Result<(), String> {
     let modified = model_modified_millis(model_path)
         .ok_or_else(|| "Could not read the installed voice model timestamp.".to_owned())?;
@@ -368,6 +418,7 @@ fn write_verification_marker(model_path: &Path, marker_path: &Path) -> Result<()
         .map_err(|error| format!("Could not record voice model verification: {error}"))
 }
 
+#[cfg(not(target_os = "windows"))]
 fn model_verification_marker_matches(model_path: &Path, marker_path: &Path) -> bool {
     let Ok(metadata) = fs::metadata(model_path) else {
         return false;
@@ -566,15 +617,15 @@ fn append_frames<T>(
 }
 
 fn resample_mono(input: &[f32], source_rate: u32) -> Vec<f32> {
-    if source_rate == WHISPER_SAMPLE_RATE {
+    if source_rate == SPEECH_SAMPLE_RATE {
         return input.to_vec();
     }
     if input.is_empty() || source_rate == 0 {
         return Vec::new();
     }
     let output_len =
-        (input.len() as u64 * WHISPER_SAMPLE_RATE as u64 / source_rate as u64) as usize;
-    let ratio = source_rate as f64 / WHISPER_SAMPLE_RATE as f64;
+        (input.len() as u64 * SPEECH_SAMPLE_RATE as u64 / source_rate as u64) as usize;
+    let ratio = source_rate as f64 / SPEECH_SAMPLE_RATE as f64;
     (0..output_len)
         .map(|index| {
             let position = index as f64 * ratio;
@@ -586,6 +637,7 @@ fn resample_mono(input: &[f32], source_rate: u32) -> Vec<f32> {
         .collect()
 }
 
+#[cfg(not(target_os = "windows"))]
 fn prepare_audio_for_whisper(samples: &[f32]) -> Option<Vec<f32>> {
     if samples.is_empty() {
         return None;
@@ -636,6 +688,82 @@ fn clean_transcript(value: &str) -> String {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn prepare_audio_for_sapi(samples: &[f32]) -> Option<Vec<f32>> {
+    if samples.is_empty() { return None; }
+    let mean = samples.iter().copied().sum::<f32>() / samples.len() as f32;
+    let mut centered: Vec<f32> = samples.iter().map(|sample| (sample - mean).clamp(-1.0, 1.0)).collect();
+    let peak = centered.iter().fold(0.0_f32, |current, sample| current.max(sample.abs()));
+    let rms = (centered.iter().map(|sample| sample * sample).sum::<f32>() / centered.len() as f32).sqrt();
+    if peak < 0.003 || rms < 0.0005 { return None; }
+    let gain = (0.35 / peak).clamp(1.0, 8.0);
+    if gain > 1.0 { for sample in &mut centered { *sample = (*sample * gain).clamp(-1.0, 1.0); } }
+    Some(centered)
+}
+
+#[cfg(target_os = "windows")]
+fn transcribe_with_sapi(samples: &[f32]) -> Result<String, String> {
+    use std::{process::Command as ProcessCommand, time::{SystemTime, UNIX_EPOCH}};
+    let unique = SystemTime::now().duration_since(UNIX_EPOCH)
+        .map_err(|error| format!("Could not create temporary speech audio: {error}"))?.as_nanos();
+    let wav_path = std::env::temp_dir().join(format!("orbito-sapi-{}-{unique}.wav", std::process::id()));
+    let data_bytes = samples.len().saturating_mul(2);
+    if data_bytes > u32::MAX as usize - 36 {
+        return Err("The recording is too long for Windows speech recognition.".to_owned());
+    }
+    let data_len = data_bytes as u32;
+    let mut wav = Vec::with_capacity(44 + data_bytes);
+    wav.extend_from_slice(b"RIFF");
+    wav.extend_from_slice(&(36_u32 + data_len).to_le_bytes());
+    wav.extend_from_slice(b"WAVEfmt ");
+    wav.extend_from_slice(&16_u32.to_le_bytes());
+    wav.extend_from_slice(&1_u16.to_le_bytes());
+    wav.extend_from_slice(&1_u16.to_le_bytes());
+    wav.extend_from_slice(&SPEECH_SAMPLE_RATE.to_le_bytes());
+    wav.extend_from_slice(&(SPEECH_SAMPLE_RATE * 2).to_le_bytes());
+    wav.extend_from_slice(&2_u16.to_le_bytes());
+    wav.extend_from_slice(&16_u16.to_le_bytes());
+    wav.extend_from_slice(b"data");
+    wav.extend_from_slice(&data_len.to_le_bytes());
+    for sample in samples {
+        let pcm = (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
+        wav.extend_from_slice(&pcm.to_le_bytes());
+    }
+    fs::write(&wav_path, wav)
+        .map_err(|error| format!("Could not prepare temporary speech audio: {error}"))?;
+    let script = r#"
+$ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+Add-Type -AssemblyName System.Speech
+$recognizers = [System.Speech.Recognition.SpeechRecognitionEngine]::InstalledRecognizers()
+if ($null -eq $recognizers -or $recognizers.Count -eq 0) {
+  [Console]::Error.Write('No SAPI speech recognizer is installed. Install a compatible Speech language in Windows Settings.')
+  exit 3
+}
+$engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine
+try {
+  $engine.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar))
+  $engine.SetInputToWaveFile($env:ORBITO_SAPI_WAV)
+  $result = $engine.Recognize([TimeSpan]::FromSeconds(60))
+  if ($null -ne $result) { [Console]::Write($result.Text) }
+} finally { $engine.Dispose() }
+"#;
+    let result = ProcessCommand::new("powershell.exe")
+        .args(["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
+        .env("ORBITO_SAPI_WAV", &wav_path)
+        .output();
+    let _ = fs::remove_file(&wav_path);
+    let output = result.map_err(|error| format!("Could not start Windows speech recognition (SAPI): {error}"))?;
+    if !output.status.success() {
+        let detail = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+        return Err(if detail.is_empty() {
+            "Windows SAPI could not recognize speech. Check that a compatible Windows Speech language is installed.".to_owned()
+        } else { detail });
+    }
+    Ok(clean_transcript(&String::from_utf8_lossy(&output.stdout)))
+}
+
+#[cfg(not(target_os = "windows"))]
 fn transcribe(model_path: &Path, samples: &[f32]) -> Result<String, String> {
     if !model_path.is_file() {
         return Err("The local voice model is not installed yet.".to_owned());
@@ -679,7 +807,7 @@ fn transcribe(model_path: &Path, samples: &[f32]) -> Result<String, String> {
     Ok(clean_transcript(&text))
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     use std::{
         fs,
