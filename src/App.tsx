@@ -14,7 +14,7 @@ const ProjectDetailPage = lazy(() => import('./components/workspace/ProjectDetai
 const ArtifactsPage = lazy(() => import('./components/workspace/ArtifactsPage').then((m) => ({ default: m.ArtifactsPage })))
 const CodeWorkspace = lazy(() => import('./components/workspace/CodeWorkspace').then((m) => ({ default: m.CodeWorkspace })))
 import { useAppStore, useWebSearchStore } from './stores'
-import { useTaskScheduler, useTelegramChatSync } from './hooks'
+import { useTaskScheduler } from './hooks'
 import { useMCPStore } from './stores/mcpStore'
 import { useSkillStore } from './stores/skillStore'
 import { useAgentStore } from './stores/agentStore'
@@ -315,7 +315,6 @@ function App() {
   useEffect(() => { localStorage.setItem('cowork-code-mode', String(codeMode)) }, [codeMode])
 
   useTaskScheduler()
-  useTelegramChatSync()
 
   useEffect(() => {
     const exportPerformanceLog = (event: KeyboardEvent) => {
