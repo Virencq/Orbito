@@ -99,13 +99,9 @@ interface AppState {
 
   // Actions - Messages
   addMessage: (sessionId: string, message: KiloMessage) => void
-  updateMessagePart: (sessionId: string, messageID: string, partID: string, part: MessagePart) => void
-  appendPartDelta: (sessionId: string, messageID: string, partID: string, delta: string) => void
-  updateMessageInfo: (sessionId: string, messageID: string, info: MessageInfo) => void
 
   // Actions - Streaming
   startStreaming: (sessionId: string, messageID: string) => void
-  updateStreamingMessageID: (sessionId: string, messageID: string) => void
   updateStreamingPart: (sessionId: string, partID: string, part: MessagePart) => void
   appendStreamingDelta: (sessionId: string, partID: string, delta: string) => void
   finishStreaming: (sessionId: string) => void
@@ -443,58 +439,6 @@ export const useAppStore = create<AppState>()(
         ).catch(console.warn)
       },
 
-      updateMessagePart: (sessionId, messageID, partID, part) => {
-        set((state) => {
-          const messages = state.sessionMessages[sessionId] || []
-          const updated = messages.map((msg) => {
-            if (msg.info.id !== messageID) return msg
-            const parts = msg.parts.map((p) => (p.id === partID ? part : p))
-            if (!parts.find((p) => p.id === partID)) {
-              parts.push(part)
-            }
-            return { ...msg, parts }
-          })
-          return {
-            sessionMessages: { ...state.sessionMessages, [sessionId]: updated },
-          }
-        })
-      },
-
-      appendPartDelta: (sessionId, messageID, partID, delta) => {
-        set((state) => {
-          const messages = state.sessionMessages[sessionId] || []
-          const updated = messages.map((msg) => {
-            if (msg.info.id !== messageID) return msg
-            const parts = msg.parts.map((p) => {
-              if (p.id !== partID) return p
-              if (p.type === 'text' || p.type === 'reasoning') {
-                return { ...p, text: p.text + delta }
-              }
-              return p
-            })
-            return { ...msg, parts }
-          })
-          return {
-            sessionMessages: { ...state.sessionMessages, [sessionId]: updated },
-          }
-        })
-      },
-
-      updateMessageInfo: (sessionId, messageID, info) => {
-        set((state) => {
-          const messages = state.sessionMessages[sessionId] || []
-          const updated = messages.map((msg) => {
-            if (msg.info.id !== messageID) return msg
-            return { ...msg, info: { ...msg.info, ...info } }
-          })
-          return {
-            sessionMessages: { ...state.sessionMessages, [sessionId]: updated },
-          }
-        })
-      },
-
-      // ---- Streaming actions ----
-
       startStreaming: (sessionId, messageID) => {
         set((state) => ({
           streamingMessage: {
@@ -502,19 +446,6 @@ export const useAppStore = create<AppState>()(
             [sessionId]: { messageID, parts: [], isStreaming: true },
           },
         }))
-      },
-
-      updateStreamingMessageID: (sessionId, messageID) => {
-        set((state) => {
-          const streaming = state.streamingMessage[sessionId]
-          if (!streaming) return state
-          return {
-            streamingMessage: {
-              ...state.streamingMessage,
-              [sessionId]: { ...streaming, messageID },
-            },
-          }
-        })
       },
 
       updateStreamingPart: (sessionId, partID, part) => {
