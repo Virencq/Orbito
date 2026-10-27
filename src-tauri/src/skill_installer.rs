@@ -35,6 +35,21 @@ pub fn extract_skill_zip(
     let mut archive = zip::ZipArchive::new(std::io::Cursor::new(&zip_bytes))
         .map_err(|e| format!("Invalid ZIP file: {}", e))?;
 
+    const MAX_UNCOMPRESSED_BYTES: u64 = 100 * 1024 * 1024;
+    let mut total_uncompressed_bytes = 0_u64;
+    for i in 0..archive.len() {
+        let file = archive.by_index(i).map_err(|e| format!("Failed to read ZIP entry: {}", e))?;
+        if file.enclosed_name().is_none() {
+            return Err(format!("Unsafe ZIP entry path: {}", file.name()));
+        }
+        total_uncompressed_bytes = total_uncompressed_bytes
+            .checked_add(file.size())
+            .ok_or_else(|| "ZIP uncompressed size overflow".to_string())?;
+        if total_uncompressed_bytes > MAX_UNCOMPRESSED_BYTES {
+            return Err("ZIP exceeds the 100 MiB uncompressed size limit".to_string());
+        }
+    }
+
     let mut skill_content: Option<String> = None;
     let mut skill_path_in_zip: Option<String> = None;
     let hint_normalized = source_path_hint
@@ -43,7 +58,10 @@ pub fn extract_skill_zip(
 
     for i in 0..archive.len() {
         let mut file = archive.by_index(i).map_err(|e| format!("Failed to read ZIP entry: {}", e))?;
-        let file_path = file.name().to_string();
+        let file_path = file.enclosed_name()
+            .ok_or_else(|| format!("Unsafe ZIP entry path: {}", file.name()))?
+            .to_string_lossy()
+            .to_string();
         let lower = file_path.replace('\\', "/").to_lowercase();
 
         if lower.ends_with("skill.md") {
@@ -77,6 +95,10 @@ pub fn extract_skill_zip(
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| "unknown".to_string())
     });
+    let name = name.replace('/', "-").replace('\\', "-").trim().to_string();
+    if name.is_empty() || name == "." || name == ".." {
+        return Err("Skill name is not a safe directory name".to_string());
+    }
     let description = meta.get("description").cloned().unwrap_or_default();
 
     let dest_dir = PathBuf::from(&target_dir).join(&name);
@@ -84,21 +106,23 @@ pub fn extract_skill_zip(
 
     for i in 0..archive.len() {
         let file = archive.by_index(i).map_err(|e| format!("Failed to read ZIP entry: {}", e))?;
-        let file_path = file.name().to_string();
+        let file_path = file.enclosed_name()
+            .ok_or_else(|| format!("Unsafe ZIP entry path: {}", file.name()))?
+            .to_path_buf();
 
-        if file.name().ends_with('/') {
+        if file.is_dir() {
             continue;
         }
 
         let rel_path = if let Some(p) = skill_path_in_zip.as_ref() {
             let skill_dir = std::path::Path::new(p).parent().unwrap_or(std::path::Path::new(""));
-            if let Ok(rel) = std::path::Path::new(&file_path).strip_prefix(skill_dir) {
+            if let Ok(rel) = file_path.strip_prefix(skill_dir) {
                 rel.to_path_buf()
             } else {
-                std::path::Path::new(&file_path).file_name().unwrap_or_default().into()
+                file_path.file_name().unwrap_or_default().into()
             }
         } else {
-            std::path::Path::new(&file_path).file_name().unwrap_or_default().into()
+            file_path.file_name().unwrap_or_default().into()
         };
 
         let output_path = dest_dir.join(&rel_path);
