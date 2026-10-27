@@ -64,5 +64,5 @@ export const publishVoiceInputStatus = (status?: VoiceInputStatus) => {
 }
 
 export const openVoiceInputSettings = () => {
-  window.dispatchEvent(new CustomEvent('s-loop:open-settings', { detail: 'voice' }))
+  window.dispatchEvent(new CustomEvent('cowork:open-settings', { detail: 'voice' }))
 }
