@@ -495,6 +495,7 @@ pub async fn search_remote_skills(source: String, query: Option<String>) -> Resu
 pub async fn download_remote_skill_archive(slug: String) -> Result<String, String> {
     let client = reqwest::Client::builder()
         .user_agent("S-Loop/0.1.0")
+        .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
 
