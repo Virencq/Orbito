@@ -326,8 +326,8 @@ pub fn jcode_permission_response(
 
     let selected = options.iter().find(|option| {
         option.get("kind").and_then(Value::as_str).map(|kind| {
-            if approve { kind == "allow_once" || kind == "allow_always" }
-            else { kind == "reject_once" || kind == "reject_always" }
+            if approve { kind == "allow_once" }
+            else { kind == "reject_once" }
         }).unwrap_or(false)
     });
 
