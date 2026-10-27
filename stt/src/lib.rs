@@ -28,7 +28,6 @@ use sha2::{Digest, Sha256};
 #[cfg(not(target_os = "windows"))]
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
-#[cfg(not(target_os = "windows"))]
 mod download;
 mod playback;
 mod realtime;
