@@ -230,7 +230,8 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         parts: [{ id: `${uid}-0`, type: 'text', text: content, sessionID: sid, messageID: uid }],
       })
 
-      if (session?.title === 'New Chat') {
+      const currentSession = useAppStore.getState().sessions.find((item) => item.id === sid)
+      if (currentSession?.title === 'New Chat') {
         updateSessionTitle(sid, content.slice(0, 40) + (content.length > 40 ? '...' : ''))
       }
 
