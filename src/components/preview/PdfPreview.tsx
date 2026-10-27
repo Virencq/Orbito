@@ -32,7 +32,10 @@ export function PdfPreview({ filePath, onLoaded, onError }: PdfPreviewProps) {
         }
 
         const pdf = await pdfjsLib.getDocument({ data: bytes }).promise
-        if (cancelled) return
+        if (cancelled) {
+          await pdf.destroy()
+          return
+        }
 
         pdfRef.current = pdf
         setNumPages(pdf.numPages)
@@ -65,7 +68,12 @@ export function PdfPreview({ filePath, onLoaded, onError }: PdfPreviewProps) {
     }
 
     load()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      const pdf = pdfRef.current
+      pdfRef.current = null
+      if (pdf) void pdf.destroy().catch(() => undefined)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filePath])
 
