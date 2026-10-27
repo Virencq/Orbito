@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import { useWorkspaceStore } from './workspaceStore'
 import i18n from '../i18n'
 import type { Session, ProviderConfig, Companion, ProviderInfo, KiloMessage, MessagePart, MessageInfo } from '../types'
@@ -11,6 +11,30 @@ import {
   normalizeKokoroSpeakerId,
   type KokoroSpeakerId,
 } from '../config/kokoroVoices'
+// Coalesce rapid persist writes (notably streaming token updates) into one
+// localStorage write every 500 ms. SQLite remains authoritative for messages.
+let persistWriteTimer: ReturnType<typeof setTimeout> | undefined
+const debouncedLocalStorage = {
+  getItem: (name: string) => localStorage.getItem(name),
+  setItem: (name: string, value: string) => {
+    if (persistWriteTimer !== undefined) clearTimeout(persistWriteTimer)
+    persistWriteTimer = setTimeout(() => {
+      try {
+        localStorage.setItem(name, value)
+      } catch (error) {
+        console.warn('[Orbito] Could not persist local state:', error)
+      }
+    }, 500)
+  },
+  removeItem: (name: string) => {
+    if (persistWriteTimer !== undefined) {
+      clearTimeout(persistWriteTimer)
+      persistWriteTimer = undefined
+    }
+    localStorage.removeItem(name)
+  },
+}
+
 import {
   loadProviderApiKey,
   redactProviderConfigs,
@@ -726,6 +750,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'snotra-storage',
+      storage: createJSONStorage(() => debouncedLocalStorage),
       partialize: (state) => ({
         sessions: state.sessions,
         activeProvider: state.activeProvider,
