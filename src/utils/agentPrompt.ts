@@ -31,7 +31,7 @@ export function createAgentProfile(name: string, description = ''): AgentProfile
 export function migrateAgentProfile<T extends Record<string, unknown>>(
   agent: T,
 ): T & AgentProfileFields {
-  const name = typeof agent.name === 'string' && agent.name.trim() ? agent.name : 'Cowork Assistant'
+  const name = typeof agent.name === 'string' && agent.name.trim() ? agent.name : 'Orbito Assistant'
   const description = typeof agent.description === 'string' ? agent.description : ''
   const defaults = createAgentProfile(name, description)
   const conversationMode =
