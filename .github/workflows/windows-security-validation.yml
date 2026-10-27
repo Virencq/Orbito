@@ -1,6 +1,9 @@
 name: Windows security and build validation
 
 on:
+  push:
+    branches:
+      - security/phase-1-t1-csp
   pull_request:
     branches:
       - main
