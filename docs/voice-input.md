@@ -5,8 +5,7 @@ React UI. Node.js and the agent server are not involved in microphone capture or
 
 ## Capabilities
 
-- Final local dictation uses multilingual Whisper Base. The transcript is inserted into the draft
-  and is never sent automatically.
+- On Windows, final local dictation uses the installed Windows SAPI speech recognizer; no Whisper model is downloaded. On non-Windows platforms, final dictation uses multilingual Whisper Base. The transcript is inserted into the draft and is never sent automatically.
 - Streaming captions use sherpa-onnx with a bilingual Chinese/English Zipformer model.
 - Voice activity detection uses sherpa-onnx with Silero VAD.
 - Text-to-speech uses sherpa-onnx with the Chinese/English Kokoro model.
@@ -23,19 +22,19 @@ revised by the recognizer.
 ## Architecture
 
 - `stt/` is a Tauri-independent Rust crate.
-  - `lib.rs` retains CPAL capture and Whisper final transcription.
+  - `lib.rs` owns CPAL capture and platform-specific final dictation: Windows SAPI or Whisper on non-Windows.
   - `voice_assets.rs` downloads, safely extracts, validates, and deletes optional voice models.
   - `realtime.rs` owns CPAL capture, linear resampling, Silero VAD, Zipformer decoding, endpointing,
     and partial/final events.
   - `tts.rs` owns Kokoro initialization, incremental generation, CPAL/rodio playback, and
     cancellation.
-- `src-tauri/src/dictation.rs` exposes final Whisper dictation.
+- `src-tauri/src/dictation.rs` exposes final local dictation.
 - `src-tauri/src/voice.rs` exposes model management, streaming recognition, and speech playback.
 - `src/utils/voiceRuntime.ts` is the typed frontend command/event boundary.
 - `src/utils/voiceConversation.ts` owns the UI conversation state machine and converts assistant
   Markdown into speakable text.
 
-Audio remains in memory. Model files are the only persistent voice data.
+Captured audio remains in memory while recording. Windows SAPI dictation uses a temporary WAV file that is removed after recognition; voice model files remain the only persistent voice data.
 
 ## Models
 
@@ -44,7 +43,8 @@ installers.
 
 | Capability | Model | Source |
 | --- | --- | --- |
-| Final dictation | Whisper Base multilingual | `ggerganov/whisper.cpp` |
+| Final dictation (Windows) | Windows SAPI installed recognizer | Windows speech components; no bundled model |
+| Final dictation (non-Windows) | Whisper Base multilingual | `ggerganov/whisper.cpp` |
 | Streaming ASR | Streaming Zipformer bilingual zh/en | `k2-fsa/sherpa-onnx` releases |
 | VAD | Silero VAD ONNX | `k2-fsa/sherpa-onnx` releases |
 | TTS | Kokoro multi-language v1.0 | `k2-fsa/sherpa-onnx` releases |
@@ -73,27 +73,15 @@ activated. Interrupted downloads and installations never replace an active model
 
 ## Native build requirements
 
-`whisper-rs` compiles whisper.cpp during the Rust build. The sherpa-onnx Rust crate downloads the
-matching prebuilt static native library during its build. Windows build machines need Rust MSVC,
-Visual Studio C++ Build Tools, a Windows SDK, CMake, and LLVM/libclang.
-The full-duplex processor additionally requires Rust 1.91 or newer.
+On Windows, final dictation uses the installed SAPI speech recognizer and does not compile `whisper.cpp` or require LLVM/libclang for dictation. Non-Windows builds still compile `whisper-rs`. The streaming ASR, VAD, and TTS stack continues to use sherpa-onnx and Sonora native dependencies. The full-duplex processor additionally requires Rust 1.91 or newer.
 
 These are build-time requirements only. Installed S-Loop users do not need Node.js, Git, Python,
 LLVM, CMake, or Visual Studio for voice features.
 
-On Windows, install LLVM from the
-[official LLVM releases](https://github.com/llvm/llvm-project/releases) or with:
-
-```powershell
-choco install llvm -y
-```
-
 Use `npm run tauri:dev`, `npm run tauri:build`, `npm run native:check`, or
 `npm run native:test:speech` for native development. The shared launcher locates `libclang.dll`,
-the Clang resource headers, Visual Studio C++ headers, and the newest installed Windows SDK before
-starting Cargo. This avoids machine-specific `LIBCLANG_PATH` and `BINDGEN_EXTRA_CLANG_ARGS`
-configuration. Direct `cargo` commands remain possible from a Visual Studio Developer PowerShell
-whose LLVM and C/C++ include paths have already been configured.
+Visual Studio C++ headers, and the newest installed Windows SDK before starting Cargo when that
+standalone toolchain is present. Whisper-specific Clang setup is not needed for Windows dictation.
 
 ## Full-duplex audio processing
 
