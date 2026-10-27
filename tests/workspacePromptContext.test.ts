@@ -31,7 +31,7 @@ describe('workspace prompt context', () => {
     expect(context.blocks).toContain('## Project Instructions\nRun tests before finishing.')
   })
 
-  it('keeps local MCP definitions separate from remote SSE/HTTP tool names', () => {
+  it('leaves local and remote MCP definitions to the JCode runtime', () => {
     useMCPStore.setState({
       servers: [
         { name: 'local-tools', type: 'stdio', command: 'local-tools' },
@@ -55,14 +55,10 @@ describe('workspace prompt context', () => {
 
     const context = buildWorkspacePromptContext('cowork', undefined, null)
 
-    expect(context.mcpToolDefs).toEqual([
-      expect.objectContaining({ serverName: 'local-tools', name: 'read_file' }),
-    ])
-    expect(context.sseMcpTools).toEqual([
-      { serverName: 'remote-tools', toolName: 'search_docs' },
-    ])
-    expect(context.allowedSseMcpToolNames).toEqual(['mcp_sse_remote_tools_search_docs'])
-    expect(context.blocks.join('\n')).toContain('mcp_sse_remote_tools_search_docs')
-    expect(context.blocks.join('\n')).toContain('local-tools/read_file')
+    expect(context.mcpToolDefs).toEqual([])
+    expect(context.sseMcpTools).toEqual([])
+    expect(context.allowedSseMcpToolNames).toEqual([])
+    expect(context.blocks.join('\n')).not.toContain('mcp_sse_remote_tools_search_docs')
+    expect(context.blocks.join('\n')).not.toContain('local-tools/read_file')
   })
 })
