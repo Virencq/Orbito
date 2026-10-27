@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Child, ChildStdin, Command, Stdio}, sync::{Arc, Mutex}, sync::atomic::{AtomicU64, Ordering}, thread};
+use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Child, ChildStdin, ChildStdout, Command, Stdio}, sync::{Arc, Mutex, mpsc}, sync::atomic::{AtomicU64, Ordering}, thread, time::{Duration, Instant}};
 use tauri::{AppHandle, Emitter, State};
 
 #[derive(Debug, Serialize, Clone)]
@@ -51,15 +51,67 @@ fn send_rpc_result(stdin: &Arc<Mutex<ChildStdin>>, id: u64, result: Value) -> Re
     guard.flush().map_err(|e| format!("Failed to flush ACP response: {e}"))
 }
 
-fn read_until_response(reader: &mut BufReader<std::process::ChildStdout>, request_id: u64) -> Result<Value, String> {
-    let mut line = String::new();
+const JCODE_START_TIMEOUT: Duration = Duration::from_secs(30);
+
+struct ChildKillGuard(Option<Child>);
+
+impl Drop for ChildKillGuard {
+    fn drop(&mut self) {
+        if let Some(child) = self.0.as_mut() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+fn spawn_stdout_reader(stdout: ChildStdout) -> mpsc::Receiver<Result<String, String>> {
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        for line in BufReader::new(stdout).lines() {
+            match line {
+                Ok(line) => {
+                    if tx.send(Ok(line)).is_err() {
+                        break;
+                    }
+                }
+                Err(error) => {
+                    let _ = tx.send(Err(format!("Failed to read ACP response: {error}")));
+                    break;
+                }
+            }
+        }
+    });
+    rx
+}
+
+fn read_until_response(
+    response_rx: &mpsc::Receiver<Result<String, String>>,
+    request_id: u64,
+) -> Result<Value, String> {
+    let deadline = Instant::now() + JCODE_START_TIMEOUT;
     loop {
-        line.clear();
-        let n = reader.read_line(&mut line).map_err(|e| format!("Failed to read ACP response: {e}"))?;
-        if n == 0 { return Err("JCode ACP exited before returning a response.".to_string()); }
-        let value: RpcEnvelope = serde_json::from_str(line.trim()).map_err(|e| format!("Invalid JCode ACP JSON: {e}"))?;
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(format!("Timed out waiting 30 seconds for JCode ACP response id {request_id}."));
+        }
+        let line = match response_rx.recv_timeout(remaining) {
+            Ok(Ok(line)) => line,
+            Ok(Err(error)) => return Err(error),
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                return Err(format!("Timed out waiting 30 seconds for JCode ACP response id {request_id}."));
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err("JCode ACP exited before returning a response.".to_string());
+            }
+        };
+        let Ok(value) = serde_json::from_str::<RpcEnvelope>(line.trim()) else {
+            // Some CLI versions print non-JSON banners to stdout; ignore them.
+            continue;
+        };
         if value.id.as_ref().and_then(Value::as_u64) == Some(request_id) {
-            if let Some(error) = value.error { return Err(format!("JCode ACP error: {error}")); }
+            if let Some(error) = value.error {
+                return Err(format!("JCode ACP error: {error}"));
+            }
             return Ok(value.result.unwrap_or(Value::Null));
         }
     }
@@ -131,13 +183,12 @@ fn find_jcode() -> Result<PathBuf, String> {
 fn start_reader(
     app: AppHandle,
     session_key: String,
-    stdout: std::process::ChildStdout,
+    response_rx: mpsc::Receiver<Result<String, String>>,
     permission_requests: Arc<Mutex<HashMap<u64, Value>>>,
     sessions: Arc<Mutex<HashMap<String, SessionProcess>>>,
 ) {
     thread::spawn(move || {
-        let reader = BufReader::new(stdout);
-        for line in reader.lines() {
+        for line in response_rx {
             let Ok(line) = line else { break };
             let line = line.trim();
             if line.is_empty() { continue; }
@@ -180,23 +231,26 @@ fn start_session_blocking(app: AppHandle, state: Arc<Mutex<HashMap<String, Sessi
     configure_no_console(&mut command);
     command.arg("acp").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
     if let Some(dir) = workspace_dir.as_deref() { command.current_dir(dir); }
-    let mut child = command.spawn().map_err(|e| format!("Failed to start JCode ACP: {e}"))?;
+    let child = command.spawn().map_err(|e| format!("Failed to start JCode ACP: {e}"))?;
+    let mut child_guard = ChildKillGuard(Some(child));
+    let child = child_guard.0.as_mut().ok_or("JCode ACP process unavailable")?;
     let stdin = Arc::new(Mutex::new(child.stdin.take().ok_or("JCode ACP stdin unavailable")?));
     let stdout = child.stdout.take().ok_or("JCode ACP stdout unavailable")?;
-    let mut reader = BufReader::new(stdout);
+    let response_rx = spawn_stdout_reader(stdout);
 
     send_rpc(&stdin, 1, "initialize", json!({
         "protocolVersion": 1,
         "clientInfo": {"name":"Cowork","version":"0.1.0"},
         "clientCapabilities": {}
     }))?;
-    let _ = read_until_response(&mut reader, 1)?;
+    let _ = read_until_response(&response_rx, 1)?;
 
     let cwd = workspace_dir.clone().unwrap_or_else(|| std::env::current_dir().unwrap_or_default().to_string_lossy().to_string());
     send_rpc(&stdin, 2, "session/new", json!({"cwd": cwd}))?;
-    let result = read_until_response(&mut reader, 2)?;
+    let result = read_until_response(&response_rx, 2)?;
     let session_id = result.get("sessionId").and_then(Value::as_str).ok_or_else(|| format!("JCode ACP did not return sessionId: {result}"))?.to_string();
 
+    let child = child_guard.0.take().ok_or("JCode ACP process unavailable")?;
     let permission_requests = Arc::new(Mutex::new(HashMap::new()));
     let process = SessionProcess {
         child,
@@ -206,7 +260,7 @@ fn start_session_blocking(app: AppHandle, state: Arc<Mutex<HashMap<String, Sessi
         permission_requests: permission_requests.clone(),
     };
     state.lock().map_err(|e| e.to_string())?.insert(session_id.clone(), process);
-    start_reader(app, session_id.clone(), reader.into_inner(), permission_requests, state.clone());
+    start_reader(app, session_id.clone(), response_rx, permission_requests, state.clone());
     Ok(session_id)
 }
 
