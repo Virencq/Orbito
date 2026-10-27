@@ -250,6 +250,7 @@ fn start_session_blocking(app: AppHandle, state: Arc<Mutex<HashMap<String, Sessi
     let result = read_until_response(&response_rx, 2)?;
     let session_id = result.get("sessionId").and_then(Value::as_str).ok_or_else(|| format!("JCode ACP did not return sessionId: {result}"))?.to_string();
 
+    let mut sessions = state.lock().map_err(|e| e.to_string())?;
     let child = child_guard.0.take().ok_or("JCode ACP process unavailable")?;
     let permission_requests = Arc::new(Mutex::new(HashMap::new()));
     let process = SessionProcess {
@@ -259,7 +260,8 @@ fn start_session_blocking(app: AppHandle, state: Arc<Mutex<HashMap<String, Sessi
         next_request_id: AtomicU64::new(100),
         permission_requests: permission_requests.clone(),
     };
-    state.lock().map_err(|e| e.to_string())?.insert(session_id.clone(), process);
+    sessions.insert(session_id.clone(), process);
+    drop(sessions);
     start_reader(app, session_id.clone(), response_rx, permission_requests, state.clone());
     Ok(session_id)
 }
