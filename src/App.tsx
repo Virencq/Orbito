@@ -13,7 +13,7 @@ const ProjectsPage = lazy(() => import('./components/workspace/ProjectsPage').th
 const ProjectDetailPage = lazy(() => import('./components/workspace/ProjectDetailPage').then((m) => ({ default: m.ProjectDetailPage })))
 const ArtifactsPage = lazy(() => import('./components/workspace/ArtifactsPage').then((m) => ({ default: m.ArtifactsPage })))
 const CodeWorkspace = lazy(() => import('./components/workspace/CodeWorkspace').then((m) => ({ default: m.CodeWorkspace })))
-import { useAppStore } from './stores'
+import { useAppStore, useWebSearchStore } from './stores'
 import { useTaskScheduler, useTelegramChatSync } from './hooks'
 import { useMCPStore } from './stores/mcpStore'
 import { useSkillStore } from './stores/skillStore'
@@ -426,6 +426,11 @@ function App() {
       }
       const hydrationStartedAt = startPerformanceTimer()
       await useAppStore.getState().loadFromDb()
+      // Restore OS-protected provider secrets only after persisted store state is hydrated.
+      await Promise.allSettled([
+        useAppStore.getState().hydrateProviderSecrets(),
+        useWebSearchStore.getState().hydrateProviderSecrets(),
+      ])
       recordPerformance('startup.store-hydration.complete', { durationMs: elapsedPerformanceMs(hydrationStartedAt) })
       // If the persisted active project pointed to a session that no longer
       // exists in SQLite, reconcile it by creating one fresh session for that
