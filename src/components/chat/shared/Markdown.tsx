@@ -135,12 +135,15 @@ interface CodeBlockProps {
   children: ReactNode
 }
 
-function CodeBlock({ className, children }: CodeBlockProps) {
+function CodeBlock({ className, children, isStreaming = false }: CodeBlockProps & { isStreaming?: boolean }) {
   const language = className?.replace('language-', '') || ''
   const code = String(children).replace(/\n$/, '')
   const loading = <div className="my-3 rounded-lg border border-[var(--color-border)] px-4 py-3 text-[12px] text-[var(--color-text-tertiary)]">Loading block…</div>
 
-  if (language === 'mermaid') return <Suspense fallback={loading}><MermaidBlock code={code} /></Suspense>
+  if (language === 'mermaid') {
+    if (isStreaming) return <StandardCodeBlock className={className}>{children}</StandardCodeBlock>
+    return <Suspense fallback={loading}><MermaidBlock code={code} /></Suspense>
+  }
   if (language === 'html') return <Suspense fallback={loading}><HtmlPreviewBlock code={code} /></Suspense>
   if (language === 'plantuml' || language === 'puml' || language === 'dot' || language === 'graphviz') {
     return <Suspense fallback={loading}><PlantUMLBlock code={code} /></Suspense>
@@ -333,16 +336,17 @@ interface MarkdownProps {
   children: string
   className?: string
   variant?: 'default' | 'document' | 'compact'
+  isStreaming?: boolean
 }
 
-function MarkdownInner({ children, className = '', variant = 'default' }: MarkdownProps) {
+function MarkdownInner({ children, className = '', variant = 'default', isStreaming = false }: MarkdownProps) {
   const isDocument = variant === 'document' || (variant === 'default' && shouldUseDocumentLayout(children))
 
   const components = useMemo<Partial<Components>>(() => ({
     code({ className, children }) {
       const isInline = !String(children).includes('\n')
       if (isInline) return <InlineCode>{children}</InlineCode>
-      return <CodeBlock className={className}>{children}</CodeBlock>
+      return <CodeBlock className={className} isStreaming={isStreaming}>{children}</CodeBlock>
     },
 
     table({ children, node }) {
@@ -409,7 +413,7 @@ function MarkdownInner({ children, className = '', variant = 'default' }: Markdo
       if (hasImage) return <div className="my-2">{children}</div>
       return <p className="my-2 leading-relaxed">{children}</p>
     },
-  }), [])
+  }), [isStreaming])
 
   const proseClass = `prose prose-base max-w-none break-words leading-[1.65] dark:prose-invert ${className}`
 

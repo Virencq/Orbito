@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 
+let renderCounter = 0
+const mermaidPromise = import('mermaid').then(({ default: mermaid }) => {
+  mermaid.initialize({
+    theme: typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+    startOnLoad: false,
+  })
+  return mermaid
+})
+
 interface MermaidBlockProps {
   code: string
 }
@@ -13,15 +22,11 @@ export function MermaidBlock({ code }: MermaidBlockProps) {
     let cancelled = false
     const render = async () => {
       try {
-        const mermaid = (await import('mermaid')).default
-        await mermaid.initialize({
-          theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
-          startOnLoad: false,
-        })
+        const mermaid = await mermaidPromise
 
         if (cancelled || !containerRef.current) return
 
-        const { svg } = await mermaid.render('mermaid-' + Date.now(), code)
+        const { svg } = await mermaid.render('mermaid-' + (++renderCounter), code)
         if (!cancelled && containerRef.current) {
           containerRef.current.innerHTML = svg
           setRendered(true)

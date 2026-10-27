@@ -106,7 +106,7 @@ export function SmoothStream({ text, isStreaming }: SmoothStreamProps) {
   const content = isStreaming ? displayed : text
   return (
     <Suspense fallback={<div className="whitespace-pre-wrap break-words">{content}</div>}>
-      <Markdown>{content}</Markdown>
+      <Markdown isStreaming={isStreaming}>{content}</Markdown>
     </Suspense>
   )
 }
