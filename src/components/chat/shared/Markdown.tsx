@@ -7,6 +7,8 @@ import remarkMath from 'remark-math'
 import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkAlert from 'remark-github-blockquote-alert'
 import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
+import { safeMarkdownSchema } from '../../../utils/markdownSanitize'
 import rehypeKatex from 'rehype-katex'
 // MathJax alternative: import rehypeMathjax from 'rehype-mathjax'
 import 'katex/dist/katex.min.css'
@@ -421,6 +423,7 @@ function MarkdownInner({ children, className = '', variant = 'default' }: Markdo
 
   const rehypePlugins = useMemo<PluggableList>(() => [
     rehypeRaw,
+    [rehypeSanitize, safeMarkdownSchema],
     rehypeKatex,
     rehypeScalableSvg,
     [rehypeHeadingIds, { prefix: `h-${Math.random().toString(36).slice(2, 8)}-` }],
