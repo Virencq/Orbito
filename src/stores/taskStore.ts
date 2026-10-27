@@ -47,7 +47,27 @@ function loadTasks(): ScheduledTask[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     const parsed = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed : []
+    const tasks: ScheduledTask[] = Array.isArray(parsed) ? parsed : []
+    let recovered = false
+    const recoveredAt = Date.now()
+    const normalized = tasks.map((task) => {
+      if (task.lastStatus !== 'running') return task
+      recovered = true
+      return {
+        ...task,
+        lastStatus: 'failed' as const,
+        lastError: task.lastError || 'Interrupted because Orbito closed before the task finished.',
+        lastFinishedAt: recoveredAt,
+      }
+    })
+    if (recovered) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized))
+      } catch {
+        // Keep the recovered in-memory state even if storage is temporarily unavailable.
+      }
+    }
+    return normalized
   } catch {
     return []
   }
