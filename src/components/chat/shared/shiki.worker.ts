@@ -23,7 +23,7 @@ self.addEventListener('message', async (rawEvent) => {
     const highlighter = await highlighterPromise
     const lang: BundledLanguage = supportedLanguages.includes(language as (typeof supportedLanguages)[number])
       ? language as BundledLanguage
-      : 'plaintext'
+      : 'plaintext' as BundledLanguage
     const html = highlighter.codeToHtml(code, { lang, theme })
     self.postMessage({ id, html } satisfies HighlightResponse)
   } catch {
