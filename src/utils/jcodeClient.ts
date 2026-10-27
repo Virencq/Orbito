@@ -263,12 +263,7 @@ export async function setModelEffort(provider: string, model: string, effort: ''
   return invoke<JCodeModelCatalog>('jcode_set_model_effort', { provider, model, effort })
 }
 
-export function getBaseUrl() { return ''; }
 export async function waitForServer(..._args: any[]) { return true; }
-
-export async function fetchModels(..._args: any[]) {
-  return [] as Array<{ id: string; name: string }>;
-}
 
 export async function fetchProviders(): Promise<any[]> {
   return [];
