@@ -144,7 +144,10 @@ function CodeBlock({ className, children, isStreaming = false }: CodeBlockProps 
     if (isStreaming) return <StandardCodeBlock className={className}>{children}</StandardCodeBlock>
     return <Suspense fallback={loading}><MermaidBlock code={code} /></Suspense>
   }
-  if (language === 'html') return <Suspense fallback={loading}><HtmlPreviewBlock code={code} /></Suspense>
+  if (language === 'html') {
+    if (isStreaming) return <StandardCodeBlock className={className}>{children}</StandardCodeBlock>
+    return <Suspense fallback={loading}><HtmlPreviewBlock code={code} /></Suspense>
+  }
   if (language === 'plantuml' || language === 'puml' || language === 'dot' || language === 'graphviz') {
     return <Suspense fallback={loading}><PlantUMLBlock code={code} /></Suspense>
   }
