@@ -133,7 +133,7 @@ export interface MessageRow {
 export async function getMessages(sessionId: string): Promise<KiloMessage[]> {
   const d = await getDatabase()
   const rows = await d.select<MessageRow[]>(
-    'SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC',
+    'SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC, rowid ASC',
     [sessionId]
   )
   return rows.map(row => ({
@@ -152,7 +152,7 @@ export async function saveMessage(
   const d = await getDatabase()
   const now = Date.now()
   await d.execute(
-    'INSERT OR REPLACE INTO messages (id, session_id, role, parts, info, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO messages (id, session_id, role, parts, info, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET parts = excluded.parts, info = excluded.info',
     [id, sessionId, role, JSON.stringify(parts), JSON.stringify(info), now]
   )
 }
