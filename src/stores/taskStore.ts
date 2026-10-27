@@ -76,9 +76,9 @@ function runtimePrompt(task: ScheduledTask, context: string[] = []) {
   return [
     task.agentRuntime?.agentSystemPrompt,
     task.agentRuntime?.agentSkillsBlock,
-    context.length ? `## Previous scheduled task output\n${context.join('\\n\\n')}\n\nUse this only as task context; do not repeat it unless relevant.` : '',
+    context.length ? `## Previous scheduled task output\n${context.join('\n\n')}\n\nUse this only as task context; do not repeat it unless relevant.` : '',
     task.prompt,
-  ].filter((part) => part?.trim()).join('\\n\\n')
+  ].filter((part) => part?.trim()).join('\n\n')
 }
 
 async function executeTask(task: ScheduledTask, context: string[] = []): Promise<string> {
