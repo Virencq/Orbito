@@ -1,5 +1,6 @@
-import type { PlatformId } from '../types/platform'
 import type { Session } from '../types'
+
+type PlatformId = 'telegram' | 'email' | 'webhook' | 'feishu' | 'dingtalk' | 'wechat' | 'slack' | 'discord' | 'qqbot'
 
 const PLATFORM_LABELS: Record<PlatformId, string> = {
   telegram: 'Telegram',

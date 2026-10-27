@@ -7,8 +7,9 @@ import remarkMath from 'remark-math'
 import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkAlert from 'remark-github-blockquote-alert'
 import rehypeRaw from 'rehype-raw'
+import rehypeSanitize from 'rehype-sanitize'
+import { safeMarkdownSchema } from '../../../utils/markdownSanitize'
 import rehypeKatex from 'rehype-katex'
-// MathJax alternative: import rehypeMathjax from 'rehype-mathjax'
 import 'katex/dist/katex.min.css'
 import 'remark-github-blockquote-alert/alert.css'
 import { Copy, Check, Download, X, Table as TableIcon, FileSpreadsheet, Code } from 'lucide-react'
@@ -133,13 +134,19 @@ interface CodeBlockProps {
   children: ReactNode
 }
 
-function CodeBlock({ className, children }: CodeBlockProps) {
+function CodeBlock({ className, children, isStreaming = false }: CodeBlockProps & { isStreaming?: boolean }) {
   const language = className?.replace('language-', '') || ''
   const code = String(children).replace(/\n$/, '')
   const loading = <div className="my-3 rounded-lg border border-[var(--color-border)] px-4 py-3 text-[12px] text-[var(--color-text-tertiary)]">Loading block…</div>
 
-  if (language === 'mermaid') return <Suspense fallback={loading}><MermaidBlock code={code} /></Suspense>
-  if (language === 'html') return <Suspense fallback={loading}><HtmlPreviewBlock code={code} /></Suspense>
+  if (language === 'mermaid') {
+    if (isStreaming) return <StandardCodeBlock className={className}>{children}</StandardCodeBlock>
+    return <Suspense fallback={loading}><MermaidBlock code={code} /></Suspense>
+  }
+  if (language === 'html') {
+    if (isStreaming) return <StandardCodeBlock className={className}>{children}</StandardCodeBlock>
+    return <Suspense fallback={loading}><HtmlPreviewBlock code={code} /></Suspense>
+  }
   if (language === 'plantuml' || language === 'puml' || language === 'dot' || language === 'graphviz') {
     return <Suspense fallback={loading}><PlantUMLBlock code={code} /></Suspense>
   }
@@ -331,16 +338,17 @@ interface MarkdownProps {
   children: string
   className?: string
   variant?: 'default' | 'document' | 'compact'
+  isStreaming?: boolean
 }
 
-function MarkdownInner({ children, className = '', variant = 'default' }: MarkdownProps) {
+function MarkdownInner({ children, className = '', variant = 'default', isStreaming = false }: MarkdownProps) {
   const isDocument = variant === 'document' || (variant === 'default' && shouldUseDocumentLayout(children))
 
   const components = useMemo<Partial<Components>>(() => ({
     code({ className, children }) {
       const isInline = !String(children).includes('\n')
       if (isInline) return <InlineCode>{children}</InlineCode>
-      return <CodeBlock className={className}>{children}</CodeBlock>
+      return <CodeBlock className={className} isStreaming={isStreaming}>{children}</CodeBlock>
     },
 
     table({ children, node }) {
@@ -407,7 +415,7 @@ function MarkdownInner({ children, className = '', variant = 'default' }: Markdo
       if (hasImage) return <div className="my-2">{children}</div>
       return <p className="my-2 leading-relaxed">{children}</p>
     },
-  }), [])
+  }), [isStreaming])
 
   const proseClass = `prose prose-base max-w-none break-words leading-[1.65] dark:prose-invert ${className}`
 
@@ -421,6 +429,7 @@ function MarkdownInner({ children, className = '', variant = 'default' }: Markdo
 
   const rehypePlugins = useMemo<PluggableList>(() => [
     rehypeRaw,
+    [rehypeSanitize, safeMarkdownSchema],
     rehypeKatex,
     rehypeScalableSvg,
     [rehypeHeadingIds, { prefix: `h-${Math.random().toString(36).slice(2, 8)}-` }],

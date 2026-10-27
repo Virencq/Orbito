@@ -13,8 +13,8 @@ const ProjectsPage = lazy(() => import('./components/workspace/ProjectsPage').th
 const ProjectDetailPage = lazy(() => import('./components/workspace/ProjectDetailPage').then((m) => ({ default: m.ProjectDetailPage })))
 const ArtifactsPage = lazy(() => import('./components/workspace/ArtifactsPage').then((m) => ({ default: m.ArtifactsPage })))
 const CodeWorkspace = lazy(() => import('./components/workspace/CodeWorkspace').then((m) => ({ default: m.CodeWorkspace })))
-import { useAppStore } from './stores'
-import { useTaskScheduler, useTelegramChatSync } from './hooks'
+import { useAppStore, useWebSearchStore } from './stores'
+import { useTaskScheduler } from './hooks'
 import { useMCPStore } from './stores/mcpStore'
 import { useSkillStore } from './stores/skillStore'
 import { useAgentStore } from './stores/agentStore'
@@ -34,7 +34,7 @@ export type { Page } from './types/navigation'
 const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 const APP_STORAGE_KEY = 'snotra-storage'
 
-function CoworkTitleBar({ onToggleSidebar, onToggleRightPanel, onBack, onForward }: {
+function OrbitoTitleBar({ onToggleSidebar, onToggleRightPanel, onBack, onForward }: {
   onToggleSidebar: () => void
   onToggleRightPanel: () => void
   onBack: () => void
@@ -315,7 +315,6 @@ function App() {
   useEffect(() => { localStorage.setItem('cowork-code-mode', String(codeMode)) }, [codeMode])
 
   useTaskScheduler()
-  useTelegramChatSync()
 
   useEffect(() => {
     const exportPerformanceLog = (event: KeyboardEvent) => {
@@ -345,8 +344,8 @@ function App() {
 
   useEffect(() => {
     const openSettings = () => setShowSettings(true)
-    window.addEventListener('cowork:open-settings', openSettings)
-    return () => window.removeEventListener('cowork:open-settings', openSettings)
+    window.addEventListener('orbito:open-settings', openSettings)
+    return () => window.removeEventListener('orbito:open-settings', openSettings)
   }, [])
 
   useEffect(() => {
@@ -426,6 +425,11 @@ function App() {
       }
       const hydrationStartedAt = startPerformanceTimer()
       await useAppStore.getState().loadFromDb()
+      // Restore OS-protected provider secrets only after persisted store state is hydrated.
+      await Promise.allSettled([
+        useAppStore.getState().hydrateProviderSecrets(),
+        useWebSearchStore.getState().hydrateProviderSecrets(),
+      ])
       recordPerformance('startup.store-hydration.complete', { durationMs: elapsedPerformanceMs(hydrationStartedAt) })
       // If the persisted active project pointed to a session that no longer
       // exists in SQLite, reconcile it by creating one fresh session for that
@@ -478,7 +482,7 @@ function App() {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-bg text-text">
-      <CoworkTitleBar
+      <OrbitoTitleBar
         onToggleSidebar={() => setSidebarOpen((open) => !open)}
         onToggleRightPanel={() => setRightOpen((open) => !open)}
         onBack={() => {

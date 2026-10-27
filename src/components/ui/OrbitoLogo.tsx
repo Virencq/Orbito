@@ -1,17 +1,17 @@
 import type { CSSProperties } from 'react'
 
-interface CoworkLogoProps {
+interface OrbitoLogoProps {
   isWorking?: boolean
   size?: number
   className?: string
 }
 
 /** Orbito Orbit Dot mark. The ring animates during work; the satellite remains visually distinct. */
-export function CoworkLogo({ isWorking = false, size = 22, className = '' }: CoworkLogoProps) {
+export function OrbitoLogo({ isWorking = false, size = 22, className = '' }: OrbitoLogoProps) {
   const style: CSSProperties = { width: size, height: size }
   return (
     <span
-      className={`cowork-logo ${isWorking ? 'cowork-logo--working' : ''} ${className}`.trim()}
+      className={`orbito-logo ${isWorking ? 'orbito-logo--working' : ''} ${className}`.trim()}
       style={style}
       role="img"
       aria-label={isWorking ? 'Orbito agent is working' : 'Orbito agent is idle'}
@@ -31,7 +31,7 @@ export function CoworkLogo({ isWorking = false, size = 22, className = '' }: Cow
           </radialGradient>
         </defs>
         <circle cx="20" cy="20" r="17" fill="none" stroke="#ff7a00" strokeWidth="1.2" strokeOpacity=".12" />
-        <path className="cowork-logo-ring" d="M28.2 8.4A15.4 15.4 0 1 0 33.5 22.7" fill="none" stroke="url(#orbito-mark-gradient)" strokeWidth="4.5" strokeLinecap="round" />
+        <path className="orbito-logo-ring" d="M28.2 8.4A15.4 15.4 0 1 0 33.5 22.7" fill="none" stroke="url(#orbito-mark-gradient)" strokeWidth="4.5" strokeLinecap="round" />
         <circle cx="28.3" cy="10.7" r="5.3" fill="url(#orbito-node-gradient)" />
         <circle cx="26.7" cy="9.1" r="1.2" fill="#fff0bd" fillOpacity=".72" />
       </svg>

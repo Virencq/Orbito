@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { getBaseUrl } from '../../utils/jcodeClient'
 
 interface PptxPreviewProps {
   filePath: string
@@ -37,8 +36,6 @@ interface SlideData {
   index: number
   content: SlideContent
 }
-
-const PREVIEW_TIMEOUT_MS = 60_000
 
 /** Find child elements by local name, ignoring XML namespace prefixes. */
 function childrenByLocalName(parent: Element, name: string): Element[] {
@@ -231,7 +228,6 @@ async function loadFallbackSlides(filePath: string): Promise<SlideData[]> {
 export function PptxPreview({ filePath, onLoaded, onError }: PptxPreviewProps) {
   const [slides, setSlides] = useState<SlideData[]>([])
   const [currentSlide, setCurrentSlide] = useState(0)
-  const [htmlDoc, setHtmlDoc] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -239,32 +235,9 @@ export function PptxPreview({ filePath, onLoaded, onError }: PptxPreviewProps) {
     setLoading(true)
     setCurrentSlide(0)
     setSlides([])
-    setHtmlDoc(null)
 
     async function load() {
-      // Preferred path: officecli-rendered, layout-faithful HTML from the
-      // pi-server. Any failure (server busy, officecli missing, non-workspace
-      // path) falls back to raw OOXML text extraction below.
-      try {
-        const res = await fetch(
-          `${getBaseUrl()}/preview/pptx?path=${encodeURIComponent(filePath)}`,
-          { signal: AbortSignal.timeout(PREVIEW_TIMEOUT_MS) },
-        )
-        const contentType = res.headers.get('content-type') || ''
-        if (res.ok && contentType.includes('text/html')) {
-          const html = await res.text()
-          if (!cancelled && html.trim()) {
-            setHtmlDoc(html)
-            setLoading(false)
-            onLoaded()
-            return
-          }
-        }
-      } catch {
-        // fall through to the text-extraction fallback
-      }
       if (cancelled) return
-
       try {
         const slideData = await loadFallbackSlides(filePath)
         if (!cancelled) {
@@ -291,23 +264,6 @@ export function PptxPreview({ filePath, onLoaded, onError }: PptxPreviewProps) {
           <div className="w-8 h-8 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
           <span className="text-[12px] text-text-tertiary">Loading slides...</span>
         </div>
-      </div>
-    )
-  }
-
-  if (htmlDoc) {
-    return (
-      <div className="h-full flex flex-col bg-[var(--color-surface)]">
-        <div className="flex items-center justify-between px-5 py-2.5 border-b border-border-light/50 shrink-0">
-          <span className="text-[11px] font-bold text-text-secondary">Rendered preview</span>
-          <span className="text-[10px] text-text-quaternary">layout-faithful</span>
-        </div>
-        <iframe
-          srcDoc={htmlDoc}
-          sandbox="allow-scripts"
-          title="PPTX preview"
-          className="flex-1 w-full border-0 bg-white"
-        />
       </div>
     )
   }

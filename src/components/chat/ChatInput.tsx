@@ -110,6 +110,8 @@ export function ChatInput({
   const realtimeLevelRef = useRef(0)
   const playbackStartedAtRef = useRef(0)
   const acceptVoiceTurnAfterRef = useRef(0)
+  const onSubmitRef = useRef(onSubmit)
+  onSubmitRef.current = onSubmit
 
   useEffect(() => {
     if (!showAddMenu) { setShowSkillsMenu(false); return }
@@ -236,8 +238,8 @@ export function ChatInput({
         })
     }
     refresh()
-    window.addEventListener('s-loop:voice-input-changed', refresh)
-    return () => window.removeEventListener('s-loop:voice-input-changed', refresh)
+    window.addEventListener('orbito:voice-input-changed', refresh)
+    return () => window.removeEventListener('orbito:voice-input-changed', refresh)
   }, [])
 
   useEffect(() => {
@@ -268,6 +270,7 @@ export function ChatInput({
 
   useEffect(() => {
     if (!isTauriRuntime()) return
+    let disposed = false
     void getVoiceRuntimeStatus()
       .then((status) => {
         setVoiceRuntime(status)
@@ -282,6 +285,7 @@ export function ChatInput({
     let disposePlayback: (() => void) | undefined
 
     void listenRealtimeVoice((event) => {
+      if (disposed) return
       if (event.kind === 'level') {
         const level = event.level ?? 0
         realtimeLevelRef.current = level
@@ -329,7 +333,7 @@ export function ChatInput({
         ) {
           turnSubmittedRef.current = true
           setVoiceConversationState('thinking')
-          onSubmit(transcript)
+          onSubmitRef.current(transcript)
           return
         }
 
@@ -366,10 +370,12 @@ export function ChatInput({
         setVoiceConversation(false, 'error', event.message || undefined)
       }
     }).then((dispose) => {
-      disposeRealtime = dispose
+      if (disposed) dispose()
+      else disposeRealtime = dispose
     })
 
     void listenSpeechPlayback((event) => {
+      if (disposed) return
       const current = getVoiceConversation()
       if (!current.active) return
       if (event.state === 'loading' || event.state === 'speaking') {
@@ -391,15 +397,17 @@ export function ChatInput({
         setVoiceConversationState('listening')
       }
     }).then((dispose) => {
-      disposePlayback = dispose
+      if (disposed) dispose()
+      else disposePlayback = dispose
     })
 
     return () => {
+      disposed = true
       disposeConversation()
       disposeRealtime?.()
       disposePlayback?.()
     }
-  }, [onSubmit])
+  }, [])
 
   useEffect(() => {
     if (!dictation?.recording) {

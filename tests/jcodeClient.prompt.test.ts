@@ -17,6 +17,7 @@ describe('JCode prompt event lifecycle', () => {
   })
 
   it('returns an error when the event listener cannot be installed', async () => {
+    invokeMock.mockResolvedValueOnce({ path: '.jcode/AGENTS.md', content: '' })
     listenMock.mockRejectedValueOnce(new Error('event bridge unavailable'))
     const { prompt } = await import('../src/utils/jcodeClient')
 
@@ -24,7 +25,7 @@ describe('JCode prompt event lifecycle', () => {
       text: '',
       error: 'event bridge unavailable',
     })
-    expect(invokeMock).not.toHaveBeenCalled()
+    expect(invokeMock).not.toHaveBeenCalledWith('jcode_prompt', expect.anything())
   })
 
   it('subscribes before prompting and releases the listener after completion', async () => {
@@ -35,7 +36,9 @@ describe('JCode prompt event lifecycle', () => {
       handler = callback
       return unlistenMock
     })
-    invokeMock.mockImplementation(async () => {
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'jcode_read_global_instructions') return { path: '.jcode/AGENTS.md', content: '' }
+      if (command !== 'jcode_prompt') return undefined
       order.push('invoke')
       handler?.({
         payload: {
@@ -62,7 +65,9 @@ describe('JCode prompt event lifecycle', () => {
       handler = callback
       return unlistenMock
     })
-    invokeMock.mockImplementation(async () => {
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'jcode_read_global_instructions') return { path: '.jcode/AGENTS.md', content: '' }
+      if (command !== 'jcode_prompt') return undefined
       handler?.({
         payload: {
           sessionId: 'acp-session',
@@ -88,7 +93,9 @@ describe('JCode prompt event lifecycle', () => {
       handler = callback
       return unlistenMock
     })
-    invokeMock.mockImplementation(async () => {
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'jcode_read_global_instructions') return { path: '.jcode/AGENTS.md', content: '' }
+      if (command !== 'jcode_prompt') return undefined
       handler?.({
         payload: {
           sessionId: 'acp-session',

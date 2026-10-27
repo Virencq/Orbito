@@ -5,7 +5,6 @@ import { useTaskStore, useAppStore, useAgentStore, useSkillStore } from '../../s
 import { X, Repeat, Sun, CalendarDays, Clock, Send, Bot, Sparkles, Link2 } from 'lucide-react';
 import { MagicButton } from '../ui';
 import { parseSchedule } from '../../types/task';
-import { PLATFORM_PRESETS } from '../../types/platform';
 import type { TaskDelivery } from '../../types/task';
 import { buildAgentRuntimeSnapshot } from '../../utils/agentRuntime';
 
@@ -96,7 +95,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
 
   const deliveryOptions: Array<{ id: TaskDelivery; label: string }> = [
     { id: 'silent', label: 'Keep result in task history' },
-    { id: 'chat', label: 'Send result to Cowork chat' },
+    { id: 'chat', label: 'Send result to Orbito chat' },
   ];
 
   const scheduleValue = buildSchedule(sMode, { intervalNum, intervalUnit, dailyTime, weeklyDays, weeklyTime, onceAt });

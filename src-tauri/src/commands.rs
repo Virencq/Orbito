@@ -2,14 +2,7 @@ use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
 use serde::Serialize;
 use std::collections::HashMap;
-
-#[derive(Serialize)]
-pub struct FileEntry {
-    pub name: String,
-    pub path: String,
-    pub is_dir: bool,
-    pub size: Option<u64>,
-}
+use std::io::Read;
 
 #[derive(Serialize)]
 pub struct SkillFileEntry {
@@ -20,6 +13,14 @@ pub struct SkillFileEntry {
     pub path: String,
     pub emoji: String,
     pub version: String,
+}
+
+#[derive(Serialize)]
+pub struct FileEntry {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    pub size: Option<u64>,
 }
 
 #[derive(Serialize)]
@@ -76,10 +77,24 @@ pub fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
     Ok(files)
 }
 
-/// Read a text file and return its contents
+/// Read a text file and return its contents, capped at 5 MiB.
 #[tauri::command]
-pub fn read_text_file(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {e}"))
+pub async fn read_text_file(path: String) -> Result<String, String> {
+    const MAX_TEXT_BYTES: usize = 5 * 1024 * 1024;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let file = std::fs::File::open(&path).map_err(|e| format!("Failed to read file: {e}"))?;
+        let mut bytes = Vec::with_capacity(MAX_TEXT_BYTES.min(64 * 1024));
+        file.take((MAX_TEXT_BYTES + 1) as u64)
+            .read_to_end(&mut bytes)
+            .map_err(|e| format!("Failed to read file: {e}"))?;
+        if bytes.len() > MAX_TEXT_BYTES {
+            return Err("Text file exceeds the 5 MiB read limit".to_string());
+        }
+        String::from_utf8(bytes).map_err(|e| format!("File is not valid UTF-8 text: {e}"))
+    })
+    .await
+    .map_err(|e| format!("File read interrupted: {e}"))?
 }
 
 /// Write a UTF-8 text file. Used for project instruction files edited in Orbito.
@@ -99,11 +114,29 @@ pub fn write_text_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(file_path, content.as_bytes()).map_err(|e| format!("Failed to write file: {e}"))
 }
 
-/// Read a binary file and return its contents as base64
+/// Read a binary file as base64, capped at a 25 MiB encoded response.
 #[tauri::command]
-pub fn read_file_base64(path: String) -> Result<String, String> {
-    let bytes = std::fs::read(&path).map_err(|e| format!("Failed to read file: {e}"))?;
-    Ok(BASE64_STANDARD.encode(bytes))
+pub async fn read_file_base64(path: String) -> Result<String, String> {
+    const MAX_BASE64_OUTPUT_BYTES: usize = 25 * 1024 * 1024;
+    const MAX_INPUT_BYTES: usize = MAX_BASE64_OUTPUT_BYTES * 3 / 4;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let file = std::fs::File::open(&path).map_err(|e| format!("Failed to read file: {e}"))?;
+        let mut bytes = Vec::with_capacity(MAX_INPUT_BYTES.min(64 * 1024));
+        file.take((MAX_INPUT_BYTES + 1) as u64)
+            .read_to_end(&mut bytes)
+            .map_err(|e| format!("Failed to read file: {e}"))?;
+        if bytes.len() > MAX_INPUT_BYTES {
+            return Err("File exceeds the 25 MiB base64 response limit".to_string());
+        }
+        let encoded = BASE64_STANDARD.encode(bytes);
+        if encoded.len() > MAX_BASE64_OUTPUT_BYTES {
+            return Err("File exceeds the 25 MiB base64 response limit".to_string());
+        }
+        Ok(encoded)
+    })
+    .await
+    .map_err(|e| format!("File read interrupted: {e}"))?
 }
 
 pub(crate) fn parse_frontmatter(content: &str) -> (HashMap<String, String>, String) {
@@ -247,34 +280,31 @@ pub async fn scan_skill_files(paths: Vec<String>) -> Result<Vec<SkillFileEntry>,
     .map_err(|e| format!("Scan interrupted: {:?}", e))?
 }
 
-/// Parse a single SKILL.md file and return its contents
-#[tauri::command]
-pub fn parse_skill_file(path: String) -> Result<SkillFileEntry, String> {
-    let path_buf = std::path::Path::new(&path);
+const MAX_REMOTE_SKILL_BODY_BYTES: usize = 50 * 1024 * 1024;
 
-    let metadata = std::fs::metadata(&path).map_err(|e| format!("Failed to read file metadata: {e}"))?;
-    if metadata.len() > 1_048_576 {
-        return Err("File too large (>1MB)".to_string());
+async fn read_limited_response(
+    mut response: reqwest::Response,
+    context: &str,
+) -> Result<Vec<u8>, String> {
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_REMOTE_SKILL_BODY_BYTES as u64)
+    {
+        return Err(format!("{context}: response exceeds the 50 MiB limit"));
     }
 
-    let content = std::fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {e}"))?;
-
-    let (meta, body) = parse_frontmatter(&content);
-    let name = meta.get("name").cloned()
-        .unwrap_or_else(|| path_buf.file_stem().unwrap_or_default().to_string_lossy().to_string());
-    let description = meta.get("description").cloned().unwrap_or_default();
-    let emoji = meta.get("emoji").cloned().unwrap_or_default();
-    let version = meta.get("version").cloned().unwrap_or_default();
-
-    Ok(SkillFileEntry {
-        name,
-        description,
-        content,
-        body,
-        path,
-        emoji,
-        version,
-    })
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|error| format!("{context}: {error}"))?
+    {
+        if bytes.len().saturating_add(chunk.len()) > MAX_REMOTE_SKILL_BODY_BYTES {
+            return Err(format!("{context}: response exceeds the 50 MiB limit"));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes)
 }
 
 #[tauri::command]
@@ -282,7 +312,8 @@ pub async fn search_remote_skills(source: String, query: Option<String>) -> Resu
     let source_lower = source.to_lowercase();
     let query = query.unwrap_or_default().trim().to_string();
     let client = reqwest::Client::builder()
-        .user_agent("S-Loop/0.1.0")
+        .user_agent("Orbito/0.1.0")
+        .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
 
@@ -296,15 +327,15 @@ pub async fn search_remote_skills(source: String, query: Option<String>) -> Resu
             )
         };
 
-        let json = client
+        let response = client
             .get(url)
             .send()
             .await
             .map_err(|e| format!("Remote search failed: {e}"))?
             .error_for_status()
-            .map_err(|e| format!("Remote search failed: {e}"))?
-            .json::<serde_json::Value>()
-            .await
+            .map_err(|e| format!("Remote search failed: {e}"))?;
+        let bytes = read_limited_response(response, "Remote search failed").await?;
+        let json = serde_json::from_slice::<serde_json::Value>(&bytes)
             .map_err(|e| format!("Invalid search response: {e}"))?;
 
         let items = json
@@ -362,15 +393,15 @@ pub async fn search_remote_skills(source: String, query: Option<String>) -> Resu
         url.push_str(&urlencoding::encode(&query));
     }
 
-    let json = client
+    let response = client
         .get(url)
         .send()
         .await
         .map_err(|e| format!("Remote search failed: {e}"))?
         .error_for_status()
-        .map_err(|e| format!("Remote search failed: {e}"))?
-        .json::<serde_json::Value>()
-        .await
+        .map_err(|e| format!("Remote search failed: {e}"))?;
+    let bytes = read_limited_response(response, "Remote search failed").await?;
+    let json = serde_json::from_slice::<serde_json::Value>(&bytes)
         .map_err(|e| format!("Invalid search response: {e}"))?;
 
     if json.get("code").and_then(|v| v.as_i64()) != Some(0) {
@@ -428,28 +459,4 @@ pub async fn search_remote_skills(source: String, query: Option<String>) -> Resu
 
     results.sort_by(|a, b| b.downloads.unwrap_or(0).cmp(&a.downloads.unwrap_or(0)));
     Ok(results)
-}
-
-#[tauri::command]
-pub async fn download_remote_skill_archive(slug: String) -> Result<String, String> {
-    let client = reqwest::Client::builder()
-        .user_agent("S-Loop/0.1.0")
-        .build()
-        .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
-
-    let bytes = client
-        .get(format!(
-            "https://clawhub.ai/api/v1/download?slug={}",
-            urlencoding::encode(&slug)
-        ))
-        .send()
-        .await
-        .map_err(|e| format!("Download failed: {e}"))?
-        .error_for_status()
-        .map_err(|e| format!("Download failed: {e}"))?
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read archive bytes: {e}"))?;
-
-    Ok(BASE64_STANDARD.encode(bytes))
 }

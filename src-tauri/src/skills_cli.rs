@@ -188,7 +188,7 @@ pub async fn skills_cli_search(query: String) -> Result<Vec<SkillsSearchResult>,
     let url = format!("{}/api/search?q={}&limit=24", api_base, encoded);
 
     let client = reqwest::Client::builder()
-        .user_agent("S-Loop/0.1.0")
+        .user_agent("Orbito/0.1.0")
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| format!("HTTP client error: {e}"))?;
@@ -317,18 +317,7 @@ pub fn create_skill_file(name: String, description: String, content: String) -> 
 }
 
 /// Check current mirror configuration
-#[tauri::command]
-pub fn skills_mirror_config() -> serde_json::Value {
-    serde_json::json!({
-        "api_url": get_skills_api_url(),
-    })
-}
 
-// ─── Helpers ───
-
-/// Install a single skill from ClawHub (https://clawhub.ai).
-/// Downloads the ZIP archive and extracts it to ~/.jcode/skills/{name}/.
-/// No npx, no git, no Node.js required.
 #[tauri::command]
 pub async fn clawhub_install_skill(
     slug: String,

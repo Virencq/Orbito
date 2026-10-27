@@ -22,6 +22,7 @@ export function HtmlPreviewBlock({ code }: HtmlPreviewBlockProps) {
       <iframe
         srcDoc={srcDoc}
         sandbox="allow-scripts"
+        referrerPolicy="no-referrer"
         className="w-full bg-white"
         style={{ minHeight: 200, height: 'auto' }}
         title="HTML Preview"

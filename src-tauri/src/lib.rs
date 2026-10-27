@@ -41,15 +41,15 @@ fn toggle_main_window(app: &tauri::AppHandle) {
 }
 
 fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let show = MenuItem::with_id(app, "tray_show", "Show Cowork", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "tray_show", "Show Orbito", true, None::<&str>)?;
     let hide = MenuItem::with_id(app, "tray_hide", "Hide to tray", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "tray_quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &hide, &quit])?;
     let icon = app.default_window_icon().cloned().ok_or("missing default window icon")?;
 
-    TrayIconBuilder::with_id("cowork-tray")
+    TrayIconBuilder::with_id("orbito-tray")
         .icon(icon)
-        .tooltip("Cowork")
+        .tooltip("Orbito")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {
@@ -111,9 +111,7 @@ pub fn run() {
             commands::write_text_file,
             commands::read_file_base64,
             commands::scan_skill_files,
-            commands::parse_skill_file,
             commands::search_remote_skills,
-            commands::download_remote_skill_archive,
             credential_store::mcp_secret_get,
             credential_store::mcp_secret_merge,
             credential_store::mcp_secret_delete,
@@ -123,13 +121,10 @@ pub fn run() {
             skills_cli::skills_cli_remove,
             skills_cli::delete_skill_files,
             skills_cli::create_skill_file,
-            skills_cli::skills_mirror_config,
             skill_installer::extract_skill_zip,
             mcp_connect,
             mcp_disconnect,
             mcp_refresh_tools,
-            mcp_list_tools,
-            mcp_call_tool,
             mcp_list_servers,
             mcp_get_status,
             dictation::get_dictation_status,
@@ -173,24 +168,41 @@ pub fn run() {
 }
 
 #[tauri::command]
-fn mcp_connect(state: tauri::State<MCPManager>, name: String, command: String, args: Vec<String>, env: std::collections::HashMap<String, String>) -> Result<mcp_manager::MCPServerStatus, String> {
-    state.connect(&name, &command, &args, &env)
+async fn mcp_connect(state: tauri::State<'_, MCPManager>, name: String, command: String, args: Vec<String>, env: std::collections::HashMap<String, String>) -> Result<mcp_manager::MCPServerStatus, String> {
+    let manager = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.connect(&name, &command, &args, &env))
+        .await
+        .map_err(|e| format!("MCP connect task failed: {e}"))?
 }
 
 #[tauri::command]
-fn mcp_disconnect(state: tauri::State<MCPManager>, name: String) -> Result<(), String> { state.disconnect(&name) }
+async fn mcp_disconnect(state: tauri::State<'_, MCPManager>, name: String) -> Result<(), String> {
+    let manager = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.disconnect(&name))
+        .await
+        .map_err(|e| format!("MCP disconnect task failed: {e}"))?
+}
 
 #[tauri::command]
-fn mcp_refresh_tools(state: tauri::State<MCPManager>, name: String) -> Result<Vec<mcp_manager::MCPTool>, String> { state.refresh_tools(&name) }
+async fn mcp_refresh_tools(state: tauri::State<'_, MCPManager>, name: String) -> Result<Vec<mcp_manager::MCPTool>, String> {
+    let manager = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.refresh_tools(&name))
+        .await
+        .map_err(|e| format!("MCP refresh task failed: {e}"))?
+}
 
 #[tauri::command]
-fn mcp_list_tools(state: tauri::State<MCPManager>, name: String) -> Result<Vec<mcp_manager::MCPTool>, String> { state.list_tools(&name) }
+async fn mcp_list_servers(state: tauri::State<'_, MCPManager>) -> Result<Vec<mcp_manager::MCPServerStatus>, String> {
+    let manager = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.list_servers())
+        .await
+        .map_err(|e| format!("MCP list-servers task failed: {e}"))?
+}
 
 #[tauri::command]
-fn mcp_call_tool(state: tauri::State<MCPManager>, name: String, tool_name: String, arguments: serde_json::Value) -> Result<serde_json::Value, String> { state.call_tool(&name, &tool_name, arguments) }
-
-#[tauri::command]
-fn mcp_list_servers(state: tauri::State<MCPManager>) -> Result<Vec<mcp_manager::MCPServerStatus>, String> { state.list_servers() }
-
-#[tauri::command]
-fn mcp_get_status(state: tauri::State<MCPManager>, name: String) -> Result<mcp_manager::MCPServerStatus, String> { state.get_status(&name) }
+async fn mcp_get_status(state: tauri::State<'_, MCPManager>, name: String) -> Result<mcp_manager::MCPServerStatus, String> {
+    let manager = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.get_status(&name))
+        .await
+        .map_err(|e| format!("MCP status task failed: {e}"))?
+}

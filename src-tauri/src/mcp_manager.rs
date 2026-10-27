@@ -62,7 +62,7 @@ fn attach_kill_on_close_job(child: &Child) -> Option<WindowsJob> {
     unsafe {
         let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
         if job.is_null() {
-            eprintln!("[cowork:mcp] Could not create Windows process job; cleanup is best-effort");
+            eprintln!("[orbito:mcp] Could not create Windows process job; cleanup is best-effort");
             return None;
         }
 
@@ -78,7 +78,7 @@ fn attach_kill_on_close_job(child: &Child) -> Option<WindowsJob> {
 
         if !assigned {
             CloseHandle(job);
-            eprintln!("[cowork:mcp] Could not attach MCP child to Windows process job; cleanup is best-effort");
+            eprintln!("[orbito:mcp] Could not attach MCP child to Windows process job; cleanup is best-effort");
             return None;
         }
 
@@ -107,6 +107,16 @@ pub struct MCPServerStatus {
 // ---- Internal Process Manager ----
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
+const DEFAULT_TOOLS_CALL_TIMEOUT_SECS: u64 = 120;
+
+fn tools_call_timeout() -> Duration {
+    std::env::var("ORBITO_MCP_TOOLS_CALL_TIMEOUT_SECS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|seconds| (1..=3600).contains(seconds))
+        .map(Duration::from_secs)
+        .unwrap_or(Duration::from_secs(DEFAULT_TOOLS_CALL_TIMEOUT_SECS))
+}
 const MAX_DIAGNOSTIC_LINES: usize = 50;
 
 fn push_diagnostic(diagnostics: &Arc<Mutex<Vec<String>>>, stream: &str, line: String) {
@@ -126,6 +136,7 @@ struct MCPServerProcess {
     response_rx: mpsc::Receiver<Result<String, String>>,
     writer: ChildStdin,
     tools: Vec<MCPTool>,
+    next_id: u64,
     diagnostics: Arc<Mutex<Vec<String>>>,
 }
 
@@ -172,23 +183,24 @@ impl MCPServerProcess {
             response_rx,
             writer,
             tools: Vec::new(),
+            next_id: 1,
             diagnostics,
         };
 
         // Step 1: Initialize
         let result = process.send_request(
-            1,
             "initialize",
             json!({
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": { "name": "s-loop", "version": "1.0.0" }
+                "clientInfo": { "name": "orbito", "version": "1.0.0" }
             }),
+            REQUEST_TIMEOUT,
         )?;
 
         let server_info = result.get("serverInfo").and_then(|i| i.get("name")).and_then(|n| n.as_str()).unwrap_or("unknown");
         let protocol_version = result.get("protocolVersion").and_then(|v| v.as_str()).unwrap_or("unknown");
-        eprintln!("[s-loop:mcp] Server '{}' connected: name={}, protocol={}", name, server_info, protocol_version);
+        eprintln!("[orbito:mcp] Server '{}' connected: name={}, protocol={}", name, server_info, protocol_version);
 
         // Step 2: Send initialized notification (no response expected)
         let notif = json!({
@@ -280,7 +292,9 @@ impl MCPServerProcess {
         }
     }
 
-    fn send_request(&mut self, id: u64, method: &str, params: Value) -> Result<Value, String> {
+    fn send_request(&mut self, method: &str, params: Value, timeout: Duration) -> Result<Value, String> {
+        let id = self.next_id;
+        self.next_id = self.next_id.saturating_add(1);
         let request = json!({
             "jsonrpc": "2.0",
             "id": id,
@@ -296,7 +310,7 @@ impl MCPServerProcess {
         self.writer.flush().map_err(|e| e.to_string())?;
 
         loop {
-            let line = match self.response_rx.recv_timeout(REQUEST_TIMEOUT) {
+            let line = match self.response_rx.recv_timeout(timeout) {
                 Ok(Ok(line)) => line,
                 Ok(Err(err)) => return Err(err),
                 Err(mpsc::RecvTimeoutError::Timeout) => {
@@ -349,7 +363,7 @@ impl MCPServerProcess {
                     return Ok(response.get("result").cloned().unwrap_or(json!(null)));
                 }
                 Some(Value::Number(_)) => {
-                    eprintln!("[s-loop:mcp] Unexpected response ID for request {} on method {}", id, method);
+                    eprintln!("[orbito:mcp] Unexpected response ID for request {} on method {}", id, method);
                     continue;
                 }
                 _ => {
@@ -361,17 +375,17 @@ impl MCPServerProcess {
 
     fn call_tool(&mut self, tool_name: &str, arguments: Value) -> Result<Value, String> {
         self.send_request(
-            3,
             "tools/call",
             json!({
                 "name": tool_name,
                 "arguments": arguments
             }),
+            tools_call_timeout(),
         )
     }
 
     fn refresh_tools(&mut self) -> Result<Vec<MCPTool>, String> {
-        let result = self.send_request(2, "tools/list", json!({}))?;
+        let result = self.send_request("tools/list", json!({}), REQUEST_TIMEOUT)?;
         if let Some(tools_array) = result.get("tools").and_then(|t| t.as_array()) {
             let tools: Vec<MCPTool> = tools_array
                 .iter()
@@ -389,10 +403,12 @@ impl MCPServerProcess {
     }
 
     fn shutdown(&mut self) {
-        // Send shutdown request (fire and forget)
+        // Send shutdown request (fire and forget) with a unique request ID.
+        let shutdown_id = self.next_id;
+        self.next_id = self.next_id.saturating_add(1);
         if let Ok(request) = serde_json::to_string(&json!({
             "jsonrpc": "2.0",
-            "id": 4,
+            "id": shutdown_id,
             "method": "shutdown",
             "params": {}
         })) {
@@ -410,14 +426,15 @@ struct ServerHandle {
     process: Mutex<MCPServerProcess>,
 }
 
+#[derive(Clone)]
 pub struct MCPManager {
-    processes: RwLock<HashMap<String, Arc<ServerHandle>>>,
+    processes: Arc<RwLock<HashMap<String, Arc<ServerHandle>>>>,
 }
 
 impl MCPManager {
     pub fn new() -> Self {
         Self {
-            processes: RwLock::new(HashMap::new()),
+            processes: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -555,6 +572,8 @@ impl MCPManager {
 
 impl Drop for MCPManager {
     fn drop(&mut self) {
-        self.cleanup();
+        if Arc::strong_count(&self.processes) == 1 {
+            self.cleanup();
+        }
     }
 }

@@ -10,44 +10,32 @@ export interface HighlightResponse {
   html: string
 }
 
-let workerPromise: Promise<Worker> | null = null
+let worker: Worker | null = null
 
-function createWorker(): Promise<Worker> {
-  if (workerPromise) return workerPromise
-
-  const workerCode = `
-    self.onmessage = async (e) => {
-      const { id, code, language, theme } = e.data
-      try {
-        const { createHighlighter } = await import('shiki')
-        const hl = await createHighlighter({
-          themes: ['github-dark', 'github-light'],
-          langs: ['javascript', 'typescript', 'python', 'css', 'html', 'json', 'bash', 'shell', 'sql', 'rust', 'go', 'java', 'ruby', 'php', 'c', 'cpp', 'yaml', 'markdown', 'xml', 'dockerfile', 'graphql', 'plaintext'],
-        })
-        const html = hl.codeToHtml(code, { lang: language || 'text', theme })
-        self.postMessage({ id, html })
-      } catch (err) {
-        self.postMessage({ id, html: '<pre><code>' + code.replace(/</g, '&lt;') + '</code></pre>' })
-      }
-    }
-  `
-
-  const blob = new Blob([workerCode], { type: 'application/javascript' })
-  const url = URL.createObjectURL(blob)
-  workerPromise = Promise.resolve(new Worker(url))
-  return workerPromise
+function createWorker(): Worker {
+  if (!worker) {
+    worker = new Worker(new URL('./shiki.worker.ts', import.meta.url), { type: 'module' })
+  }
+  return worker
 }
 
 export async function highlightInWorker(request: HighlightRequest): Promise<HighlightResponse> {
-  const worker = await createWorker()
-  return new Promise((resolve) => {
-    const handler = (e: MessageEvent) => {
-      if (e.data.id === request.id) {
-        worker.removeEventListener('message', handler)
-        resolve(e.data)
+  const currentWorker = createWorker()
+  return new Promise((resolve, reject) => {
+    const handler = (event: MessageEvent<HighlightResponse>) => {
+      if (event.data.id === request.id) {
+        currentWorker.removeEventListener('message', handler)
+        currentWorker.removeEventListener('error', errorHandler)
+        resolve(event.data)
       }
     }
-    worker.addEventListener('message', handler)
-    worker.postMessage(request)
+    const errorHandler = (event: ErrorEvent) => {
+      currentWorker.removeEventListener('message', handler)
+      currentWorker.removeEventListener('error', errorHandler)
+      reject(new Error(event.message || 'Syntax highlighting worker failed'))
+    }
+    currentWorker.addEventListener('message', handler)
+    currentWorker.addEventListener('error', errorHandler)
+    currentWorker.postMessage(request)
   })
 }

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import * as XLSX from 'xlsx'
 
 interface ExcelPreviewProps {
   filePath: string
@@ -31,6 +30,7 @@ export function ExcelPreview({ filePath, onLoaded, onError }: ExcelPreviewProps)
           bytes[i] = binaryString.charCodeAt(i)
         }
 
+        const XLSX = await import('xlsx')
         const workbook = XLSX.read(bytes.buffer, { type: 'array' })
         const sheetData: SheetData[] = workbook.SheetNames.map((name) => {
           const worksheet = workbook.Sheets[name]
