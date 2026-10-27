@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { useAppStore } from '../../stores'
-import { X, Cpu, Server, Sparkles, CheckCircle, Sun, Moon, Globe, Upload, FileText } from 'lucide-react'
+import { X, Cpu, Server, Sparkles, CheckCircle, Sun, Moon, Globe, Upload, FileText, Mic } from 'lucide-react'
 import { MCPSettings } from '../mcp'
 import { SkillSettings } from '../skills'
 import { WebSearchSettings } from '../websearch'
@@ -13,6 +13,7 @@ import { ImportLibraryButton } from '../workspace/WorkspaceLibraryPage'
 import { useMCPStore } from '../../stores/mcpStore'
 import { JCodeModelControls } from './JCodeModelControls'
 import { GlobalInstructionsSettings } from './GlobalInstructionsSettings'
+import { VoiceInputSettings } from './VoiceInputSettings'
 import { useSkillStore } from '../../stores/skillStore'
 import { probeJCode, runDoctor, inspectJCodeConfig, updateRuntimeSettings, type JCodeConfigInspection, type JCodeDoctorResult, type JCodeRuntimeInfo, type JCodeRuntimeSettings } from '../../utils/jcodeClient'
 
@@ -274,6 +275,7 @@ export function SettingsModal({ onClose, initialTab = 'provider', open = true }:
             {[
               { id: 'provider', icon: Cpu, label: 'JCode Runtime' },
               { id: 'instructions', icon: FileText, label: 'Global Instructions' },
+              { id: 'voice', icon: Mic, label: 'Voice Input' },
               { id: 'mcp', icon: Server, label: 'MCP Servers' },
               { id: 'skills', icon: Sparkles, label: 'Skills' },
               { id: 'websearch', icon: Globe, label: 'Web Search' },
@@ -321,6 +323,7 @@ export function SettingsModal({ onClose, initialTab = 'provider', open = true }:
               <h3 className="text-xl font-semibold text-text tracking-[-0.02em]">
                 {activeTab === 'provider' && 'JCode Runtime'}
               {activeTab === 'instructions' && 'Global Instructions'}
+              {activeTab === 'voice' && 'Voice Input'}
               {activeTab === 'mcp' && 'MCP Servers'}
               {activeTab === 'skills' && 'Skills'}
               {activeTab === 'websearch' && 'Web Search'}
@@ -341,6 +344,7 @@ export function SettingsModal({ onClose, initialTab = 'provider', open = true }:
           <div className="flex-1 overflow-hidden">
             {activeTab === 'provider' && <JCodeRuntimeSettings />}
             {activeTab === 'instructions' && <GlobalInstructionsSettings />}
+            {activeTab === 'voice' && <ScrollShadow className="h-full px-8 py-7"><VoiceInputSettings /></ScrollShadow>}
 
             {activeTab === 'library' && (
               <ScrollShadow className="h-full px-8 py-7 animate-fade-in">
