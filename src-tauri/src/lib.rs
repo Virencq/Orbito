@@ -111,9 +111,7 @@ pub fn run() {
             commands::write_text_file,
             commands::read_file_base64,
             commands::scan_skill_files,
-            commands::parse_skill_file,
             commands::search_remote_skills,
-            commands::download_remote_skill_archive,
             credential_store::mcp_secret_get,
             credential_store::mcp_secret_merge,
             credential_store::mcp_secret_delete,
@@ -123,13 +121,10 @@ pub fn run() {
             skills_cli::skills_cli_remove,
             skills_cli::delete_skill_files,
             skills_cli::create_skill_file,
-            skills_cli::skills_mirror_config,
             skill_installer::extract_skill_zip,
             mcp_connect,
             mcp_disconnect,
             mcp_refresh_tools,
-            mcp_list_tools,
-            mcp_call_tool,
             mcp_list_servers,
             mcp_get_status,
             dictation::get_dictation_status,
@@ -194,22 +189,6 @@ async fn mcp_refresh_tools(state: tauri::State<'_, MCPManager>, name: String) ->
     tauri::async_runtime::spawn_blocking(move || manager.refresh_tools(&name))
         .await
         .map_err(|e| format!("MCP refresh task failed: {e}"))?
-}
-
-#[tauri::command]
-async fn mcp_list_tools(state: tauri::State<'_, MCPManager>, name: String) -> Result<Vec<mcp_manager::MCPTool>, String> {
-    let manager = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || manager.list_tools(&name))
-        .await
-        .map_err(|e| format!("MCP list-tools task failed: {e}"))?
-}
-
-#[tauri::command]
-async fn mcp_call_tool(state: tauri::State<'_, MCPManager>, name: String, tool_name: String, arguments: serde_json::Value) -> Result<serde_json::Value, String> {
-    let manager = state.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || manager.call_tool(&name, &tool_name, arguments))
-        .await
-        .map_err(|e| format!("MCP tool-call task failed: {e}"))?
 }
 
 #[tauri::command]

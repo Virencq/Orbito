@@ -13,17 +13,6 @@ pub struct FileEntry {
 }
 
 #[derive(Serialize)]
-pub struct SkillFileEntry {
-    pub name: String,
-    pub description: String,
-    pub content: String,
-    pub body: String,
-    pub path: String,
-    pub emoji: String,
-    pub version: String,
-}
-
-#[derive(Serialize)]
 pub struct RemoteSkillEntry {
     pub id: String,
     pub slug: String,
@@ -280,36 +269,6 @@ pub async fn scan_skill_files(paths: Vec<String>) -> Result<Vec<SkillFileEntry>,
     .map_err(|e| format!("Scan interrupted: {:?}", e))?
 }
 
-/// Parse a single SKILL.md file and return its contents
-#[tauri::command]
-pub fn parse_skill_file(path: String) -> Result<SkillFileEntry, String> {
-    let path_buf = std::path::Path::new(&path);
-
-    let metadata = std::fs::metadata(&path).map_err(|e| format!("Failed to read file metadata: {e}"))?;
-    if metadata.len() > 1_048_576 {
-        return Err("File too large (>1MB)".to_string());
-    }
-
-    let content = std::fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {e}"))?;
-
-    let (meta, body) = parse_frontmatter(&content);
-    let name = meta.get("name").cloned()
-        .unwrap_or_else(|| path_buf.file_stem().unwrap_or_default().to_string_lossy().to_string());
-    let description = meta.get("description").cloned().unwrap_or_default();
-    let emoji = meta.get("emoji").cloned().unwrap_or_default();
-    let version = meta.get("version").cloned().unwrap_or_default();
-
-    Ok(SkillFileEntry {
-        name,
-        description,
-        content,
-        body,
-        path,
-        emoji,
-        version,
-    })
-}
-
 const MAX_REMOTE_SKILL_BODY_BYTES: usize = 50 * 1024 * 1024;
 
 async fn read_limited_response(
@@ -489,27 +448,4 @@ pub async fn search_remote_skills(source: String, query: Option<String>) -> Resu
 
     results.sort_by(|a, b| b.downloads.unwrap_or(0).cmp(&a.downloads.unwrap_or(0)));
     Ok(results)
-}
-
-#[tauri::command]
-pub async fn download_remote_skill_archive(slug: String) -> Result<String, String> {
-    let client = reqwest::Client::builder()
-        .user_agent("S-Loop/0.1.0")
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
-
-    let response = client
-        .get(format!(
-            "https://clawhub.ai/api/v1/download?slug={}",
-            urlencoding::encode(&slug)
-        ))
-        .send()
-        .await
-        .map_err(|e| format!("Download failed: {e}"))?
-        .error_for_status()
-        .map_err(|e| format!("Download failed: {e}"))?;
-    let bytes = read_limited_response(response, "Download failed").await?;
-
-    Ok(BASE64_STANDARD.encode(bytes))
 }
