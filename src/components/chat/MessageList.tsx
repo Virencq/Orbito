@@ -45,7 +45,16 @@ export function MessageList({ sessionId, onEdit, onDelete }: MessageListProps) {
         result[result.length - 1] = {
           ...last,
           parts: [...last.parts, ...msg.parts],
-          info: { ...msg.info, time: last.info.time },
+          // Keep the first assistant message ID as the visual bubble's key.
+          // Otherwise the key changes when streaming begins and again when it commits,
+          // forcing React to unmount/remount the entire message subtree.
+          info: {
+            ...msg.info,
+            id: last.info.id,
+            sessionID: last.info.sessionID,
+            role: last.info.role,
+            time: last.info.time,
+          },
         }
       } else {
         result.push(msg)
