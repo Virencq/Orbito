@@ -11,6 +11,7 @@ export function PdfPreview({ filePath, onLoaded, onError }: PdfPreviewProps) {
   const [numPages, setNumPages] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const pdfRef = useRef<any>(null)
+  const pdfLoadingTaskRef = useRef<{ destroy: () => Promise<void> } | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -31,9 +32,11 @@ export function PdfPreview({ filePath, onLoaded, onError }: PdfPreviewProps) {
           bytes[i] = binaryString.charCodeAt(i)
         }
 
-        const pdf = await pdfjsLib.getDocument({ data: bytes }).promise
+        const loadingTask = pdfjsLib.getDocument({ data: bytes })
+        pdfLoadingTaskRef.current = loadingTask
+        const pdf = await loadingTask.promise
         if (cancelled) {
-          await pdf.destroy()
+          await loadingTask.destroy()
           return
         }
 
@@ -70,9 +73,10 @@ export function PdfPreview({ filePath, onLoaded, onError }: PdfPreviewProps) {
     load()
     return () => {
       cancelled = true
-      const pdf = pdfRef.current
       pdfRef.current = null
-      if (pdf) void pdf.destroy().catch(() => undefined)
+      const loadingTask = pdfLoadingTaskRef.current
+      pdfLoadingTaskRef.current = null
+      if (loadingTask) void loadingTask.destroy().catch(() => undefined)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filePath])

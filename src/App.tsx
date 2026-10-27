@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
-import { ChevronRight, FolderKanban, History, Lightbulb, Plus, Settings, X, Pencil } from 'lucide-react'
+import { ChevronRight, FolderKanban, History, Lightbulb, Menu, Plus, Settings, X, Pencil, Columns2, ArrowLeft, ArrowRight } from 'lucide-react'
 import { ChatView } from './components/chat'
 import { LeftNav, ResizeHandle } from './components/layout/LeftNav'
 
@@ -33,6 +33,24 @@ export type { Page } from './types/navigation'
 
 const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 const APP_STORAGE_KEY = 'snotra-storage'
+
+function OrbitoTitleBar({ onToggleSidebar, onToggleRightPanel, onBack, onForward }: {
+  onToggleSidebar: () => void
+  onToggleRightPanel: () => void
+  onBack: () => void
+  onForward: () => void
+}) {
+  return (
+    <header className="fixed top-0 left-0 right-0 z-[100] h-11 bg-surface border-b border-border flex items-center justify-between select-none">
+      <div className="flex items-center h-full gap-1 px-3 text-[#5d5852]">
+        <button onClick={onToggleSidebar} className="title-icon" title="Toggle sidebar" aria-label="Toggle sidebar"><Menu size={16}/></button>
+        <button onClick={onToggleRightPanel} className="title-icon" title="Toggle project panel" aria-label="Toggle project panel"><Columns2 size={16}/></button>
+        <button onClick={onBack} className="title-icon" title="Back" aria-label="Back"><ArrowLeft size={17}/></button>
+        <button onClick={onForward} className="title-icon" title="Forward" aria-label="Forward"><ArrowRight size={17}/></button>
+      </div>
+    </header>
+  )
+}
 
 function RightPanel({ width, onWidth, onClose, onAddScheduled, codeMode }: {
   width: number
@@ -464,7 +482,7 @@ function App() {
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-bg text-text">
-      <CoworkTitleBar
+      <OrbitoTitleBar
         onToggleSidebar={() => setSidebarOpen((open) => !open)}
         onToggleRightPanel={() => setRightOpen((open) => !open)}
         onBack={() => {

@@ -48,7 +48,7 @@ export function Sidebar({
 }: SidebarProps) {
   const sessions = useAppStore((s) => s.sessions)
   const activeSessionId = useAppStore((s) => s.activeSessionId)
-  const streamingBySession = useAppStore(useShallow((s) => Object.fromEntries(s.sessions.map((session) => [session.id, !!s.streamingBySession[session.id]]))))
+  const streamingBySession = useAppStore(useShallow((s) => Object.fromEntries(s.sessions.map((session) => [session.id, !!s.streamingMessage[session.id]?.isStreaming]))))
   const setActiveSession = useAppStore((s) => s.setActiveSession)
   const createSession = useAppStore((s) => s.createSession)
   const deleteSession = useAppStore((s) => s.deleteSession)
