@@ -2,7 +2,8 @@
 //!
 //! The design follows OpenWorker's MIT-licensed `ocw-stt` crate: this crate deliberately has no
 //! Tauri or UI dependency. Audio is held in memory only for the active recording; the host owns
-//! setup, permissions, and how a final transcript is inserted.
+//! setup, permissions, and how a final transcript is inserted. Windows SAPI dictation uses a
+//! short-lived temporary WAV file; non-Windows Whisper dictation keeps its audio in memory.
 
 use std::{
     fs,
@@ -39,7 +40,7 @@ pub use realtime::{RealtimeEventKind, RealtimeRecognizer, RealtimeState, Realtim
 pub use tts::{SpeechPlaybackEvent, SpeechPlaybackState, SpeechSynthesizer};
 pub use voice_assets::{VoiceAssetKind, VoiceAssetProgress, VoiceAssetStatus, VoiceAssets};
 
-/// Multilingual Whisper Base supports Chinese and English while keeping the download around 141 MiB.
+/// Whisper model filename used by non-Windows dictation; Windows uses the installed SAPI engine.
 pub const DEFAULT_MODEL_FILE: &str = "ggml-base.bin";
 #[cfg(not(target_os = "windows"))]
 pub const DEFAULT_MODEL_URL: &str =
