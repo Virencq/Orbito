@@ -197,7 +197,7 @@ Messages stay encrypted end-to-end`,
     steps: `Create a code project with language/framework
 Set dev, run, test, lint, and typecheck commands
 Add code projects to the workspace sidebar
-Switch context between code and cowork modes
+Switch context between chat and code modes
 Persist project state across sessions`,
     keyCapability: 'Development workflow',
     estimatedDuration: 'Per project',

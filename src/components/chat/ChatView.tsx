@@ -138,7 +138,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         }
       },
       onToolCall: (id, name, args) => {
-        console.log('[Cowork] Tool call:', name, id)
+        console.log('[Orbito] Tool call:', name, id)
         usePetStore.getState().onWorking()
         const sm = useAppStore.getState().streamingMessage[sid]
         if (!sm) return

@@ -60,7 +60,7 @@ export const listenDictationDownloadProgress = (
   })
 
 export const publishVoiceInputStatus = (status?: VoiceInputStatus) => {
-  window.dispatchEvent(new CustomEvent('s-loop:voice-input-changed', { detail: status }))
+  window.dispatchEvent(new CustomEvent('orbito:voice-input-changed', { detail: status }))
 }
 
 export const openVoiceInputSettings = () => {

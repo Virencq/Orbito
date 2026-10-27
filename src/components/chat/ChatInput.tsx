@@ -238,8 +238,8 @@ export function ChatInput({
         })
     }
     refresh()
-    window.addEventListener('s-loop:voice-input-changed', refresh)
-    return () => window.removeEventListener('s-loop:voice-input-changed', refresh)
+    window.addEventListener('orbito:voice-input-changed', refresh)
+    return () => window.removeEventListener('orbito:voice-input-changed', refresh)
   }, [])
 
   useEffect(() => {

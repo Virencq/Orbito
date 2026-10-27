@@ -169,7 +169,7 @@ export function LeftNav({ width, onWidth, page, onPage, onNew, onSettings, codeM
 
       <div className="px-1.5 pt-1 pb-1.5">
         <div className="grid grid-cols-2 h-7 rounded-md bg-surface-secondary p-0.5">
-          <button onClick={onCowork} className={`rounded-md text-[13px] font-semibold transition-colors ${!codeMode ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text'}`}>Cowork</button>
+          <button onClick={onCowork} className={`rounded-md text-[13px] font-semibold transition-colors ${!codeMode ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text'}`}>Chat</button>
           <button onClick={onCode} className={`rounded-md text-[13px] font-medium transition-colors ${codeMode ? 'bg-surface text-text shadow-sm' : 'text-text-secondary hover:text-text'}`}>‹/&gt;&nbsp; Code</button>
         </div>
       </div>
