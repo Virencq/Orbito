@@ -744,7 +744,10 @@ if ($null -eq $recognizers -or $recognizers.Count -eq 0) {
   [Console]::Error.Write('No SAPI speech recognizer is installed. Install a compatible Speech language in Windows Settings.')
   exit 3
 }
-$engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine -ArgumentList $recognizers[0].Id
+$uiLanguage = [System.Globalization.CultureInfo]::CurrentUICulture.TwoLetterISOLanguageName
+$recognizer = $recognizers | Where-Object { $_.Culture.TwoLetterISOLanguageName -eq $uiLanguage } | Select-Object -First 1
+if ($null -eq $recognizer) { $recognizer = $recognizers[0] }
+$engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine -ArgumentList $recognizer.Id
 try {
   $engine.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar))
   $engine.SetInputToWaveFile($env:ORBITO_SAPI_WAV)
