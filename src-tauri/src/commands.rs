@@ -310,12 +310,40 @@ pub fn parse_skill_file(path: String) -> Result<SkillFileEntry, String> {
     })
 }
 
+const MAX_REMOTE_SKILL_BODY_BYTES: usize = 50 * 1024 * 1024;
+
+async fn read_limited_response(
+    mut response: reqwest::Response,
+    context: &str,
+) -> Result<Vec<u8>, String> {
+    if response
+        .content_length()
+        .is_some_and(|length| length > MAX_REMOTE_SKILL_BODY_BYTES as u64)
+    {
+        return Err(format!("{context}: response exceeds the 50 MiB limit"));
+    }
+
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|error| format!("{context}: {error}"))?
+    {
+        if bytes.len().saturating_add(chunk.len()) > MAX_REMOTE_SKILL_BODY_BYTES {
+            return Err(format!("{context}: response exceeds the 50 MiB limit"));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes)
+}
+
 #[tauri::command]
 pub async fn search_remote_skills(source: String, query: Option<String>) -> Result<Vec<RemoteSkillEntry>, String> {
     let source_lower = source.to_lowercase();
     let query = query.unwrap_or_default().trim().to_string();
     let client = reqwest::Client::builder()
         .user_agent("S-Loop/0.1.0")
+        .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
 
@@ -329,15 +357,15 @@ pub async fn search_remote_skills(source: String, query: Option<String>) -> Resu
             )
         };
 
-        let json = client
+        let response = client
             .get(url)
             .send()
             .await
             .map_err(|e| format!("Remote search failed: {e}"))?
             .error_for_status()
-            .map_err(|e| format!("Remote search failed: {e}"))?
-            .json::<serde_json::Value>()
-            .await
+            .map_err(|e| format!("Remote search failed: {e}"))?;
+        let bytes = read_limited_response(response, "Remote search failed").await?;
+        let json = serde_json::from_slice::<serde_json::Value>(&bytes)
             .map_err(|e| format!("Invalid search response: {e}"))?;
 
         let items = json
@@ -395,15 +423,15 @@ pub async fn search_remote_skills(source: String, query: Option<String>) -> Resu
         url.push_str(&urlencoding::encode(&query));
     }
 
-    let json = client
+    let response = client
         .get(url)
         .send()
         .await
         .map_err(|e| format!("Remote search failed: {e}"))?
         .error_for_status()
-        .map_err(|e| format!("Remote search failed: {e}"))?
-        .json::<serde_json::Value>()
-        .await
+        .map_err(|e| format!("Remote search failed: {e}"))?;
+    let bytes = read_limited_response(response, "Remote search failed").await?;
+    let json = serde_json::from_slice::<serde_json::Value>(&bytes)
         .map_err(|e| format!("Invalid search response: {e}"))?;
 
     if json.get("code").and_then(|v| v.as_i64()) != Some(0) {
@@ -470,7 +498,7 @@ pub async fn download_remote_skill_archive(slug: String) -> Result<String, Strin
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
 
-    let bytes = client
+    let response = client
         .get(format!(
             "https://clawhub.ai/api/v1/download?slug={}",
             urlencoding::encode(&slug)
@@ -479,10 +507,8 @@ pub async fn download_remote_skill_archive(slug: String) -> Result<String, Strin
         .await
         .map_err(|e| format!("Download failed: {e}"))?
         .error_for_status()
-        .map_err(|e| format!("Download failed: {e}"))?
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read archive bytes: {e}"))?;
+        .map_err(|e| format!("Download failed: {e}"))?;
+    let bytes = read_limited_response(response, "Download failed").await?;
 
     Ok(BASE64_STANDARD.encode(bytes))
 }
