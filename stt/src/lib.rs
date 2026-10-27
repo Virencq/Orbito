@@ -108,9 +108,13 @@ impl Dictation {
         thread::spawn(move || capture_worker(receiver, worker_recording, worker_live));
 
         let model_path = model_dir.into().join(DEFAULT_MODEL_FILE);
+        #[cfg(target_os = "windows")]
+        let ready_marker_path = model_path.with_extension("sapi.ready");
+        #[cfg(not(target_os = "windows"))]
+        let ready_marker_path = model_path.with_extension("bin.ready");
         Self {
             verified_marker_path: model_path.with_extension("bin.verified"),
-            ready_marker_path: model_path.with_extension("bin.ready"),
+            ready_marker_path,
             model_path,
             commands,
             recording,
@@ -740,7 +744,7 @@ if ($null -eq $recognizers -or $recognizers.Count -eq 0) {
   [Console]::Error.Write('No SAPI speech recognizer is installed. Install a compatible Speech language in Windows Settings.')
   exit 3
 }
-$engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine
+$engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine -ArgumentList $recognizers[0].Id
 try {
   $engine.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar))
   $engine.SetInputToWaveFile($env:ORBITO_SAPI_WAV)
