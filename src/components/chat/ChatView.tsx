@@ -301,7 +301,8 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
 
       // Optional UI hints are forwarded to the JCode adapter when present.
       // An empty model is valid: JCode will use its configured default model.
-      startStreaming(sid, 'pending-' + Date.now())
+      const pendingMessageId = 'pending-' + Date.now()
+      startStreaming(sid, pendingMessageId)
 
       usePetStore.getState().onThinking()
 
@@ -360,8 +361,8 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         return
       }
 
-      const msgID = `pi-msg-${Date.now()}`
       const sm = useAppStore.getState().streamingMessage[sid]
+      const msgID = sm?.messageID || pendingMessageId
       const accumulatedParts = sm?.parts || []
       const textPart = accumulatedParts.find(p => p.type === 'text')
       if (textPart && 'text' in textPart && result.text) {
