@@ -173,24 +173,57 @@ pub fn run() {
 }
 
 #[tauri::command]
-fn mcp_connect(state: tauri::State<MCPManager>, name: String, command: String, args: Vec<String>, env: std::collections::HashMap<String, String>) -> Result<mcp_manager::MCPServerStatus, String> {
-    state.connect(&name, &command, &args, &env)
+async fn mcp_connect(state: tauri::State<'_, MCPManager>, name: String, command: String, args: Vec<String>, env: std::collections::HashMap<String, String>) -> Result<mcp_manager::MCPServerStatus, String> {
+    let manager = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.connect(&name, &command, &args, &env))
+        .await
+        .map_err(|e| format!("MCP connect task failed: {e}"))?
 }
 
 #[tauri::command]
-fn mcp_disconnect(state: tauri::State<MCPManager>, name: String) -> Result<(), String> { state.disconnect(&name) }
+async fn mcp_disconnect(state: tauri::State<'_, MCPManager>, name: String) -> Result<(), String> {
+    let manager = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.disconnect(&name))
+        .await
+        .map_err(|e| format!("MCP disconnect task failed: {e}"))?
+}
 
 #[tauri::command]
-fn mcp_refresh_tools(state: tauri::State<MCPManager>, name: String) -> Result<Vec<mcp_manager::MCPTool>, String> { state.refresh_tools(&name) }
+async fn mcp_refresh_tools(state: tauri::State<'_, MCPManager>, name: String) -> Result<Vec<mcp_manager::MCPTool>, String> {
+    let manager = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.refresh_tools(&name))
+        .await
+        .map_err(|e| format!("MCP refresh task failed: {e}"))?
+}
 
 #[tauri::command]
-fn mcp_list_tools(state: tauri::State<MCPManager>, name: String) -> Result<Vec<mcp_manager::MCPTool>, String> { state.list_tools(&name) }
+async fn mcp_list_tools(state: tauri::State<'_, MCPManager>, name: String) -> Result<Vec<mcp_manager::MCPTool>, String> {
+    let manager = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.list_tools(&name))
+        .await
+        .map_err(|e| format!("MCP list-tools task failed: {e}"))?
+}
 
 #[tauri::command]
-fn mcp_call_tool(state: tauri::State<MCPManager>, name: String, tool_name: String, arguments: serde_json::Value) -> Result<serde_json::Value, String> { state.call_tool(&name, &tool_name, arguments) }
+async fn mcp_call_tool(state: tauri::State<'_, MCPManager>, name: String, tool_name: String, arguments: serde_json::Value) -> Result<serde_json::Value, String> {
+    let manager = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.call_tool(&name, &tool_name, arguments))
+        .await
+        .map_err(|e| format!("MCP tool-call task failed: {e}"))?
+}
 
 #[tauri::command]
-fn mcp_list_servers(state: tauri::State<MCPManager>) -> Result<Vec<mcp_manager::MCPServerStatus>, String> { state.list_servers() }
+async fn mcp_list_servers(state: tauri::State<'_, MCPManager>) -> Result<Vec<mcp_manager::MCPServerStatus>, String> {
+    let manager = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.list_servers())
+        .await
+        .map_err(|e| format!("MCP list-servers task failed: {e}"))?
+}
 
 #[tauri::command]
-fn mcp_get_status(state: tauri::State<MCPManager>, name: String) -> Result<mcp_manager::MCPServerStatus, String> { state.get_status(&name) }
+async fn mcp_get_status(state: tauri::State<'_, MCPManager>, name: String) -> Result<mcp_manager::MCPServerStatus, String> {
+    let manager = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.get_status(&name))
+        .await
+        .map_err(|e| format!("MCP status task failed: {e}"))?
+}

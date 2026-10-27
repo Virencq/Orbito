@@ -167,7 +167,14 @@ fn start_reader(
 }
 
 #[tauri::command]
-pub fn jcode_start_session(app: AppHandle, state: State<'_, JCodeState>, workspace_dir: Option<String>) -> Result<String, String> {
+pub async fn jcode_start_session(app: AppHandle, state: State<'_, JCodeState>, workspace_dir: Option<String>) -> Result<String, String> {
+    let state = state.0.clone();
+    tauri::async_runtime::spawn_blocking(move || start_session_blocking(app, state, workspace_dir))
+        .await
+        .map_err(|e| format!("JCode session start task failed: {e}"))?
+}
+
+fn start_session_blocking(app: AppHandle, state: Arc<Mutex<HashMap<String, SessionProcess>>>, workspace_dir: Option<String>) -> Result<String, String> {
     let executable = find_jcode()?;
     let mut command = Command::new(executable);
     configure_no_console(&mut command);
@@ -198,8 +205,8 @@ pub fn jcode_start_session(app: AppHandle, state: State<'_, JCodeState>, workspa
         next_request_id: AtomicU64::new(100),
         permission_requests: permission_requests.clone(),
     };
-    state.0.lock().map_err(|e| e.to_string())?.insert(session_id.clone(), process);
-    start_reader(app, session_id.clone(), reader.into_inner(), permission_requests, state.0.clone());
+    state.lock().map_err(|e| e.to_string())?.insert(session_id.clone(), process);
+    start_reader(app, session_id.clone(), reader.into_inner(), permission_requests, state.clone());
     Ok(session_id)
 }
 
@@ -339,11 +346,15 @@ pub fn shutdown_all(state: &JCodeState) {
 }
 
 #[tauri::command]
-pub fn jcode_status() -> Result<Value, String> {
-    match find_jcode() {
-        Ok(path) => Ok(json!({"installed":true,"path":path.to_string_lossy(),"command":"jcode acp"})),
-        Err(error) => Ok(json!({"installed":false,"error":error})),
-    }
+pub async fn jcode_status() -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        match find_jcode() {
+            Ok(path) => Ok(json!({"installed":true,"path":path.to_string_lossy(),"command":"jcode acp"})),
+            Err(error) => Ok(json!({"installed":false,"error":error})),
+        }
+    })
+    .await
+    .map_err(|e| format!("JCode status task failed: {e}"))?
 }
 
 
@@ -458,21 +469,25 @@ pub fn jcode_update_runtime_settings(
 }
 
 #[tauri::command]
-pub fn jcode_doctor() -> Result<Value, String> {
-    let executable = find_jcode()?;
-    let mut command = Command::new(executable);
-    configure_no_console(&mut command);
-    command.args(["doctor"]).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    let output = command.output().map_err(|e| format!("Failed to run jcode doctor: {e}"))?;
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    Ok(json!({
-        "success": output.status.success(),
-        "code": output.status.code(),
-        "stdout": stdout,
-        "stderr": stderr,
-        "command": "jcode doctor"
-    }))
+pub async fn jcode_doctor() -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let executable = find_jcode()?;
+        let mut command = Command::new(executable);
+        configure_no_console(&mut command);
+        command.args(["doctor"]).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+        let output = command.output().map_err(|e| format!("Failed to run jcode doctor: {e}"))?;
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Ok(json!({
+            "success": output.status.success(),
+            "code": output.status.code(),
+            "stdout": stdout,
+            "stderr": stderr,
+            "command": "jcode doctor"
+        }))
+    })
+    .await
+    .map_err(|e| format!("JCode doctor task failed: {e}"))?
 }
 
 #[tauri::command]

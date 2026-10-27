@@ -107,6 +107,16 @@ pub struct MCPServerStatus {
 // ---- Internal Process Manager ----
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
+const DEFAULT_TOOLS_CALL_TIMEOUT_SECS: u64 = 120;
+
+fn tools_call_timeout() -> Duration {
+    std::env::var("ORBITO_MCP_TOOLS_CALL_TIMEOUT_SECS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|seconds| (1..=3600).contains(seconds))
+        .map(Duration::from_secs)
+        .unwrap_or(Duration::from_secs(DEFAULT_TOOLS_CALL_TIMEOUT_SECS))
+}
 const MAX_DIAGNOSTIC_LINES: usize = 50;
 
 fn push_diagnostic(diagnostics: &Arc<Mutex<Vec<String>>>, stream: &str, line: String) {
@@ -185,6 +195,7 @@ impl MCPServerProcess {
                 "capabilities": {},
                 "clientInfo": { "name": "s-loop", "version": "1.0.0" }
             }),
+            REQUEST_TIMEOUT,
         )?;
 
         let server_info = result.get("serverInfo").and_then(|i| i.get("name")).and_then(|n| n.as_str()).unwrap_or("unknown");
@@ -281,7 +292,7 @@ impl MCPServerProcess {
         }
     }
 
-    fn send_request(&mut self, method: &str, params: Value) -> Result<Value, String> {
+    fn send_request(&mut self, method: &str, params: Value, timeout: Duration) -> Result<Value, String> {
         let id = self.next_id;
         self.next_id = self.next_id.saturating_add(1);
         let request = json!({
@@ -299,7 +310,7 @@ impl MCPServerProcess {
         self.writer.flush().map_err(|e| e.to_string())?;
 
         loop {
-            let line = match self.response_rx.recv_timeout(REQUEST_TIMEOUT) {
+            let line = match self.response_rx.recv_timeout(timeout) {
                 Ok(Ok(line)) => line,
                 Ok(Err(err)) => return Err(err),
                 Err(mpsc::RecvTimeoutError::Timeout) => {
@@ -369,11 +380,12 @@ impl MCPServerProcess {
                 "name": tool_name,
                 "arguments": arguments
             }),
+            tools_call_timeout(),
         )
     }
 
     fn refresh_tools(&mut self) -> Result<Vec<MCPTool>, String> {
-        let result = self.send_request("tools/list", json!({}))?;
+        let result = self.send_request("tools/list", json!({}), REQUEST_TIMEOUT)?;
         if let Some(tools_array) = result.get("tools").and_then(|t| t.as_array()) {
             let tools: Vec<MCPTool> = tools_array
                 .iter()
@@ -414,14 +426,15 @@ struct ServerHandle {
     process: Mutex<MCPServerProcess>,
 }
 
+#[derive(Clone)]
 pub struct MCPManager {
-    processes: RwLock<HashMap<String, Arc<ServerHandle>>>,
+    processes: Arc<RwLock<HashMap<String, Arc<ServerHandle>>>>,
 }
 
 impl MCPManager {
     pub fn new() -> Self {
         Self {
-            processes: RwLock::new(HashMap::new()),
+            processes: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -559,6 +572,8 @@ impl MCPManager {
 
 impl Drop for MCPManager {
     fn drop(&mut self) {
-        self.cleanup();
+        if Arc::strong_count(&self.processes) == 1 {
+            self.cleanup();
+        }
     }
 }
