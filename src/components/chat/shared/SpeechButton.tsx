@@ -46,7 +46,27 @@ export function SpeechButton({ text, label }: SpeechButtonProps) {
 
   const toggle = async () => {
     if (!installed) {
-      openVoiceInputSettings()
+      // Use the operating system's installed speech voices through Web Speech API.
+      // This keeps basic Speak usable without downloading the optional Kokoro model.
+      if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+        openVoiceInputSettings()
+        return
+      }
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel()
+        setRequestId(null)
+        return
+      }
+      const speakableText = toSpeakableText(text)
+      if (!speakableText) return
+      window.speechSynthesis.cancel()
+      const utterance = new SpeechSynthesisUtterance(speakableText)
+      utterance.rate = 1
+      utterance.onstart = () => setEvent({ requestId: -1, state: 'speaking', progress: 0 })
+      utterance.onend = () => setEvent({ requestId: -1, state: 'idle', progress: 1 })
+      utterance.onerror = (event) => setEvent({ requestId: -1, state: 'error', progress: 0, message: event.error })
+      setRequestId(-1)
+      window.speechSynthesis.speak(utterance)
       return
     }
     if (active) {
