@@ -589,6 +589,13 @@ export const useAppStore = create<AppState>()(
           },
           streamingMessage: updated,
         })
+        db.saveMessage(
+          newMessage.info.id,
+          sessionId,
+          newMessage.info.role,
+          newMessage.parts,
+          newMessage.info as unknown as Record<string, unknown>,
+        ).catch(console.warn)
       },
 
       commitStreamingMessage: (sessionId, message) => {
