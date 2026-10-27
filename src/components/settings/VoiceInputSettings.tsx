@@ -225,7 +225,7 @@ export function VoiceInputSettings() {
               {text.verify}
             </button>
           )}
-          {status?.modelInstalled && (
+          {status?.modelInstalled && !status.modelName.startsWith('Windows SAPI') && (
             <button className="px-3.5 py-2 rounded-lg text-red-500 hover:bg-red-500/10 text-[13px] font-semibold flex items-center gap-2" disabled={!!busy} onClick={() => void run('delete', deleteDictationModel)}>
               <Trash2 size={15} /> {text.remove}
             </button>
