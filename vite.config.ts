@@ -9,6 +9,7 @@ export default defineConfig(async () => ({
   plugins: [react(), tailwindcss()],
 
   clearScreen: false,
+  worker: { format: "es" },
   server: {
     port: 1420,
     strictPort: true,
