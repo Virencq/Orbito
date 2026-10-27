@@ -177,7 +177,7 @@ fn find_jcode() -> Result<PathBuf, String> {
         }
     }
 
-    Err("JCode was not found. Checked JCODE_PATH, the per-user JCode install location, and PATH. If JCode is installed, restart Cowork after installation or set JCODE_PATH to the jcode executable.".to_string())
+    Err("JCode was not found. Checked JCODE_PATH, the per-user JCode install location, and PATH. If JCode is installed, restart Orbito after installation or set JCODE_PATH to the jcode executable.".to_string())
 }
 
 fn start_reader(
@@ -240,7 +240,7 @@ fn start_session_blocking(app: AppHandle, state: Arc<Mutex<HashMap<String, Sessi
 
     send_rpc(&stdin, 1, "initialize", json!({
         "protocolVersion": 1,
-        "clientInfo": {"name":"Cowork","version":"0.1.0"},
+        "clientInfo": {"name":"Orbito","version":"0.1.0"},
         "clientCapabilities": {}
     }))?;
     let _ = read_until_response(&response_rx, 1)?;
@@ -582,12 +582,12 @@ pub fn jcode_sync_mcp_config(servers: Value) -> Result<Value, String> {
     }
 
     let managed_path = dir.join("cowork-mcp-managed.json");
-    // New manifests store the exact config Cowork last wrote. Older versions
+    // New manifests store the exact config Orbito last wrote. Older versions
     // stored only names; those names cannot prove that a user has not edited
     // an entry, so legacy entries are deliberately treated conservatively.
     let previous_manifest: Value = match std::fs::read_to_string(&managed_path) {
         Ok(raw) => serde_json::from_str(&raw)
-            .map_err(|e| format!("Invalid Cowork MCP ownership manifest at {}: {e}", managed_path.display()))?,
+            .map_err(|e| format!("Invalid Orbito MCP ownership manifest at {}: {e}", managed_path.display()))?,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => json!({}),
         Err(e) => return Err(format!("Failed to read {}: {e}", managed_path.display())),
     };
@@ -618,8 +618,8 @@ pub fn jcode_sync_mcp_config(servers: Value) -> Result<Value, String> {
     let map = existing.as_object_mut().ok_or("JCode mcpServers must be an object.")?;
 
     // Remove stale entries only when the on-disk value still exactly matches
-    // the snapshot Cowork recorded. If a user edited an entry after sync, it
-    // is no longer safe for Cowork to claim or delete it.
+    // the snapshot Orbito recorded. If a user edited an entry after sync, it
+    // is no longer safe for Orbito to claim or delete it.
     if let Some(previous) = previous_values {
         for (name, last_written) in previous {
             if !desired.contains_key(name) && map.get(name) == Some(last_written) {
@@ -629,7 +629,7 @@ pub fn jcode_sync_mcp_config(servers: Value) -> Result<Value, String> {
     }
 
     // Never overwrite a same-name JCode entry unless the manifest proves it
-    // is the unchanged entry Cowork previously managed. This avoids losing
+    // is the unchanged entry Orbito previously managed. This avoids losing
     // independently configured MCP servers through name collisions.
     for (name, new_value) in &desired {
         if let Some(current) = map.get(name) {
@@ -641,10 +641,10 @@ pub fn jcode_sync_mcp_config(servers: Value) -> Result<Value, String> {
                 let detail = if legacy_claim {
                     "a legacy ownership record has no value snapshot"
                 } else {
-                    "the entry is not owned by Cowork"
+                    "the entry is not owned by Orbito"
                 };
                 return Err(format!(
-                    "MCP server name conflict for '{name}' in {} ({detail}). Rename the Cowork server or resolve the conflict manually; the existing JCode configuration was left unchanged.",
+                    "MCP server name conflict for '{name}' in {} ({detail}). Rename the Orbito server or resolve the conflict manually; the existing JCode configuration was left unchanged.",
                     path.display()
                 ));
             }
@@ -659,7 +659,7 @@ pub fn jcode_sync_mcp_config(servers: Value) -> Result<Value, String> {
     std::fs::write(
         &managed_path,
         serde_json::to_vec_pretty(&manifest).map_err(|e| e.to_string())?,
-    ).map_err(|e| format!("Failed to write Cowork MCP ownership manifest: {e}"))?;
+    ).map_err(|e| format!("Failed to write Orbito MCP ownership manifest: {e}"))?;
 
     let content = serde_json::to_vec_pretty(&config).map_err(|e| e.to_string())?;
     std::fs::write(&path, content)
@@ -668,7 +668,7 @@ pub fn jcode_sync_mcp_config(servers: Value) -> Result<Value, String> {
 }
 
 /// Read JCode's on-disk MCP configuration so the settings UI can import servers
-/// that were added outside Cowork. This is read-only and never rewrites the file.
+/// that were added outside Orbito. This is read-only and never rewrites the file.
 #[tauri::command]
 pub fn jcode_read_mcp_config() -> Result<Value, String> {
     let home = std::env::var_os("USERPROFILE")

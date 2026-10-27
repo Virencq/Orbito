@@ -41,15 +41,15 @@ fn toggle_main_window(app: &tauri::AppHandle) {
 }
 
 fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let show = MenuItem::with_id(app, "tray_show", "Show Cowork", true, None::<&str>)?;
+    let show = MenuItem::with_id(app, "tray_show", "Show Orbito", true, None::<&str>)?;
     let hide = MenuItem::with_id(app, "tray_hide", "Hide to tray", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "tray_quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show, &hide, &quit])?;
     let icon = app.default_window_icon().cloned().ok_or("missing default window icon")?;
 
-    TrayIconBuilder::with_id("cowork-tray")
+    TrayIconBuilder::with_id("orbito-tray")
         .icon(icon)
-        .tooltip("Cowork")
+        .tooltip("Orbito")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray, event| {

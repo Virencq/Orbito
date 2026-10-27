@@ -62,7 +62,7 @@ fn attach_kill_on_close_job(child: &Child) -> Option<WindowsJob> {
     unsafe {
         let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
         if job.is_null() {
-            eprintln!("[cowork:mcp] Could not create Windows process job; cleanup is best-effort");
+            eprintln!("[orbito:mcp] Could not create Windows process job; cleanup is best-effort");
             return None;
         }
 
@@ -78,7 +78,7 @@ fn attach_kill_on_close_job(child: &Child) -> Option<WindowsJob> {
 
         if !assigned {
             CloseHandle(job);
-            eprintln!("[cowork:mcp] Could not attach MCP child to Windows process job; cleanup is best-effort");
+            eprintln!("[orbito:mcp] Could not attach MCP child to Windows process job; cleanup is best-effort");
             return None;
         }
 
@@ -193,14 +193,14 @@ impl MCPServerProcess {
             json!({
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": { "name": "s-loop", "version": "1.0.0" }
+                "clientInfo": { "name": "orbito", "version": "1.0.0" }
             }),
             REQUEST_TIMEOUT,
         )?;
 
         let server_info = result.get("serverInfo").and_then(|i| i.get("name")).and_then(|n| n.as_str()).unwrap_or("unknown");
         let protocol_version = result.get("protocolVersion").and_then(|v| v.as_str()).unwrap_or("unknown");
-        eprintln!("[s-loop:mcp] Server '{}' connected: name={}, protocol={}", name, server_info, protocol_version);
+        eprintln!("[orbito:mcp] Server '{}' connected: name={}, protocol={}", name, server_info, protocol_version);
 
         // Step 2: Send initialized notification (no response expected)
         let notif = json!({
@@ -363,7 +363,7 @@ impl MCPServerProcess {
                     return Ok(response.get("result").cloned().unwrap_or(json!(null)));
                 }
                 Some(Value::Number(_)) => {
-                    eprintln!("[s-loop:mcp] Unexpected response ID for request {} on method {}", id, method);
+                    eprintln!("[orbito:mcp] Unexpected response ID for request {} on method {}", id, method);
                     continue;
                 }
                 _ => {

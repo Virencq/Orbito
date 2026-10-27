@@ -188,7 +188,7 @@ pub async fn skills_cli_search(query: String) -> Result<Vec<SkillsSearchResult>,
     let url = format!("{}/api/search?q={}&limit=24", api_base, encoded);
 
     let client = reqwest::Client::builder()
-        .user_agent("S-Loop/0.1.0")
+        .user_agent("Orbito/0.1.0")
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| format!("HTTP client error: {e}"))?;

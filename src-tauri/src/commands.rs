@@ -301,7 +301,7 @@ pub async fn search_remote_skills(source: String, query: Option<String>) -> Resu
     let source_lower = source.to_lowercase();
     let query = query.unwrap_or_default().trim().to_string();
     let client = reqwest::Client::builder()
-        .user_agent("S-Loop/0.1.0")
+        .user_agent("Orbito/0.1.0")
         .timeout(std::time::Duration::from_secs(30))
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
