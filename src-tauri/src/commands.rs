@@ -5,6 +5,17 @@ use std::collections::HashMap;
 use std::io::Read;
 
 #[derive(Serialize)]
+pub struct SkillFileEntry {
+    pub name: String,
+    pub description: String,
+    pub content: String,
+    pub body: String,
+    pub path: String,
+    pub emoji: String,
+    pub version: String,
+}
+
+#[derive(Serialize)]
 pub struct FileEntry {
     pub name: String,
     pub path: String,
