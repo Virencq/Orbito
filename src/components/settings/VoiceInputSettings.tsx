@@ -22,11 +22,11 @@ import {
 const copy = {
   en: {
     title: 'Local voice input',
-    description: 'Speech is recorded and transcribed on this device. Audio is never uploaded or saved.',
+    description: 'Speech is processed on this device. Temporary audio is removed after transcription; audio is never uploaded.',
     browser: 'Voice input is available in the installed desktop app.',
     compatible: 'Compatible',
     unsupported: 'Not compatible',
-    model: 'Multilingual speech model',
+    model: 'Speech recognition engine',
     download: 'Download model',
     downloading: 'Downloading',
     cancel: 'Cancel',
@@ -38,7 +38,7 @@ const copy = {
     stopTest: 'Stop and transcribe',
     testing: 'Transcribing…',
     ready: 'Voice input is ready',
-    notReady: 'Complete the model download and microphone test before using the chat microphone.',
+    notReady: 'Complete the microphone test before using the chat microphone.',
     transcript: 'Test transcript',
     empty: 'No speech was recognized. Try speaking for a little longer.',
   },
@@ -192,7 +192,7 @@ export function VoiceInputSettings() {
           <div>
             <h4 className="font-semibold text-text">{text.model}</h4>
             <p className="mt-1 text-xs text-text-tertiary">
-              {status?.modelName || 'Whisper Base Multilingual'} · {formatBytes(status?.modelBytes || 0)}
+              {status?.modelName || 'Speech recognition engine'}{status?.modelBytes ? ` · ${formatBytes(status.modelBytes)}` : ''}
             </p>
           </div>
           {status?.modelVerified && <CheckCircle size={20} className="text-green-500" />}
@@ -220,7 +220,7 @@ export function VoiceInputSettings() {
               <X size={16} /> {text.cancel}
             </button>
           )}
-          {status?.modelInstalled && (
+          {status?.modelInstalled && !status.modelName.startsWith('Windows SAPI') && (
             <button className="px-3.5 py-2 rounded-lg border border-border bg-surface-secondary text-[13px] font-semibold" disabled={!!busy} onClick={() => void run('verify', verifyDictationModel)}>
               {text.verify}
             </button>
