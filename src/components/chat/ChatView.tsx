@@ -496,7 +496,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
     const nativeFiles = Array.from(e.dataTransfer?.files || [])
 
     try {
-      const fileData = e.dataTransfer.getData('application/x-cowork-file')
+      const fileData = e.dataTransfer.getData('application/x-orbito-file')
       if (fileData) {
         const { path, name, isDir } = JSON.parse(fileData)
 
