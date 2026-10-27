@@ -126,6 +126,7 @@ struct MCPServerProcess {
     response_rx: mpsc::Receiver<Result<String, String>>,
     writer: ChildStdin,
     tools: Vec<MCPTool>,
+    next_id: u64,
     diagnostics: Arc<Mutex<Vec<String>>>,
 }
 
@@ -172,12 +173,12 @@ impl MCPServerProcess {
             response_rx,
             writer,
             tools: Vec::new(),
+            next_id: 1,
             diagnostics,
         };
 
         // Step 1: Initialize
         let result = process.send_request(
-            1,
             "initialize",
             json!({
                 "protocolVersion": "2024-11-05",
@@ -280,7 +281,9 @@ impl MCPServerProcess {
         }
     }
 
-    fn send_request(&mut self, id: u64, method: &str, params: Value) -> Result<Value, String> {
+    fn send_request(&mut self, method: &str, params: Value) -> Result<Value, String> {
+        let id = self.next_id;
+        self.next_id = self.next_id.saturating_add(1);
         let request = json!({
             "jsonrpc": "2.0",
             "id": id,
@@ -361,7 +364,6 @@ impl MCPServerProcess {
 
     fn call_tool(&mut self, tool_name: &str, arguments: Value) -> Result<Value, String> {
         self.send_request(
-            3,
             "tools/call",
             json!({
                 "name": tool_name,
@@ -371,7 +373,7 @@ impl MCPServerProcess {
     }
 
     fn refresh_tools(&mut self) -> Result<Vec<MCPTool>, String> {
-        let result = self.send_request(2, "tools/list", json!({}))?;
+        let result = self.send_request("tools/list", json!({}))?;
         if let Some(tools_array) = result.get("tools").and_then(|t| t.as_array()) {
             let tools: Vec<MCPTool> = tools_array
                 .iter()
@@ -389,10 +391,12 @@ impl MCPServerProcess {
     }
 
     fn shutdown(&mut self) {
-        // Send shutdown request (fire and forget)
+        // Send shutdown request (fire and forget) with a unique request ID.
+        let shutdown_id = self.next_id;
+        self.next_id = self.next_id.saturating_add(1);
         if let Ok(request) = serde_json::to_string(&json!({
             "jsonrpc": "2.0",
-            "id": 4,
+            "id": shutdown_id,
             "method": "shutdown",
             "params": {}
         })) {
