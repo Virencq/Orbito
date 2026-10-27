@@ -157,20 +157,18 @@ export function VoiceInputSettings() {
     return <div role="status" className="m-8 rounded-lg border border-border bg-surface-secondary p-4 text-sm text-text-secondary">Checking voice support…</div>
   }
 
-  if (!status) {
-    return (
-      <div className="m-8 rounded-xl border border-border bg-surface p-5">
-        <h4 className="text-[15px] font-semibold text-text">Voice features are unavailable in this build</h4>
-        <p className="mt-2 text-sm leading-6 text-text-secondary">
-          The optional native speech engine is not enabled. Text chat continues to work normally; voice controls have been disabled to avoid failed commands.
-        </p>
-        {error && <div role="alert" className="mt-3 break-words rounded-lg border border-border bg-surface-secondary p-3 text-xs text-text-tertiary">{error}</div>}
-      </div>
-    )
-  }
-
   return (
     <div className="max-w-3xl mx-auto px-8 py-7 space-y-4">
+      {!status && (
+        <div className="rounded-xl border border-border bg-surface p-5">
+          <h4 className="text-[15px] font-semibold text-text">Local dictation status unavailable</h4>
+          <p className="mt-2 text-sm leading-6 text-text-secondary">
+            Microphone dictation could not initialize in this build. Text-to-speech and its voice-library controls are shown below if available.
+          </p>
+          {error && <div role="alert" className="mt-3 break-words rounded-lg border border-border bg-surface-secondary p-3 text-xs text-text-tertiary">{error}</div>}
+        </div>
+      )}
+      {status && <>
       <div className="settings-section bg-surface-secondary/55">
         <div className="flex items-start gap-4">
           <div className="p-2.5 rounded-lg bg-accent-subtle text-accent"><Mic size={20} /></div>
@@ -263,6 +261,7 @@ export function VoiceInputSettings() {
       <div className={`rounded-lg border px-4 py-3 text-sm font-semibold ${status?.modelVerified && status?.testPassed ? 'border-green-500/20 bg-green-500/10 text-green-600' : 'border-amber-500/20 bg-amber-500/10 text-amber-600'}`}>
         {status?.modelVerified && status?.testPassed ? text.ready : text.notReady}
       </div>
+      </>}
       <VoiceRuntimeSettings />
     </div>
   )
