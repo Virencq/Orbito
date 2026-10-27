@@ -2,6 +2,7 @@ use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
 use serde::Serialize;
 use std::collections::HashMap;
+use std::io::Read;
 
 #[derive(Serialize)]
 pub struct FileEntry {
@@ -76,10 +77,24 @@ pub fn list_directory(path: String) -> Result<Vec<FileEntry>, String> {
     Ok(files)
 }
 
-/// Read a text file and return its contents
+/// Read a text file and return its contents, capped at 5 MiB.
 #[tauri::command]
-pub fn read_text_file(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {e}"))
+pub async fn read_text_file(path: String) -> Result<String, String> {
+    const MAX_TEXT_BYTES: usize = 5 * 1024 * 1024;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let file = std::fs::File::open(&path).map_err(|e| format!("Failed to read file: {e}"))?;
+        let mut bytes = Vec::with_capacity(MAX_TEXT_BYTES.min(64 * 1024));
+        file.take((MAX_TEXT_BYTES + 1) as u64)
+            .read_to_end(&mut bytes)
+            .map_err(|e| format!("Failed to read file: {e}"))?;
+        if bytes.len() > MAX_TEXT_BYTES {
+            return Err("Text file exceeds the 5 MiB read limit".to_string());
+        }
+        String::from_utf8(bytes).map_err(|e| format!("File is not valid UTF-8 text: {e}"))
+    })
+    .await
+    .map_err(|e| format!("File read interrupted: {e}"))?
 }
 
 /// Write a UTF-8 text file. Used for project instruction files edited in Orbito.
@@ -99,11 +114,29 @@ pub fn write_text_file(path: String, content: String) -> Result<(), String> {
     std::fs::write(file_path, content.as_bytes()).map_err(|e| format!("Failed to write file: {e}"))
 }
 
-/// Read a binary file and return its contents as base64
+/// Read a binary file as base64, capped at a 25 MiB encoded response.
 #[tauri::command]
-pub fn read_file_base64(path: String) -> Result<String, String> {
-    let bytes = std::fs::read(&path).map_err(|e| format!("Failed to read file: {e}"))?;
-    Ok(BASE64_STANDARD.encode(bytes))
+pub async fn read_file_base64(path: String) -> Result<String, String> {
+    const MAX_BASE64_OUTPUT_BYTES: usize = 25 * 1024 * 1024;
+    const MAX_INPUT_BYTES: usize = MAX_BASE64_OUTPUT_BYTES * 3 / 4;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let file = std::fs::File::open(&path).map_err(|e| format!("Failed to read file: {e}"))?;
+        let mut bytes = Vec::with_capacity(MAX_INPUT_BYTES.min(64 * 1024));
+        file.take((MAX_INPUT_BYTES + 1) as u64)
+            .read_to_end(&mut bytes)
+            .map_err(|e| format!("Failed to read file: {e}"))?;
+        if bytes.len() > MAX_INPUT_BYTES {
+            return Err("File exceeds the 25 MiB base64 response limit".to_string());
+        }
+        let encoded = BASE64_STANDARD.encode(bytes);
+        if encoded.len() > MAX_BASE64_OUTPUT_BYTES {
+            return Err("File exceeds the 25 MiB base64 response limit".to_string());
+        }
+        Ok(encoded)
+    })
+    .await
+    .map_err(|e| format!("File read interrupted: {e}"))?
 }
 
 pub(crate) fn parse_frontmatter(content: &str) -> (HashMap<String, String>, String) {
