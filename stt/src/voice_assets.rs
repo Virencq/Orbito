@@ -80,7 +80,7 @@ impl VoiceAssetKind {
         match self {
             Self::StreamingAsr => &[
                 "encoder-epoch-99-avg-1.int8.onnx",
-                "decoder-epoch-99-avg-1.int8.onnx",
+                "decoder-epoch-99-avg-1.onnx",
                 "joiner-epoch-99-avg-1.int8.onnx",
                 "tokens.txt",
             ],
