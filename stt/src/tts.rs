@@ -83,7 +83,6 @@ impl SpeechSynthesizer {
         if !self.assets.is_installed(VoiceAssetKind::Tts) {
             return Err("Install the local text-to-speech model in Settings first.".to_owned());
         }
-        let _ = speaker_id; // Kept for Tauri API compatibility; the built-in engine uses its default voice.
 
         self.stop();
         let request_id = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
@@ -99,7 +98,7 @@ impl SpeechSynthesizer {
         let synthesizer = self.clone();
         thread::spawn(move || {
             if let Err(error) =
-                synthesizer.run_speech(request_id, &text, speed, speaker, on_event.clone())
+                synthesizer.run_speech(request_id, &text, speed, speaker_id, on_event.clone())
             {
                 if synthesizer.current_request.load(Ordering::SeqCst) == request_id {
                     let _ = synthesizer.stop();
