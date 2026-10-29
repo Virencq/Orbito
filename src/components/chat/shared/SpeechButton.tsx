@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { LoaderCircle, Square, Volume2 } from 'lucide-react'
-import { useAppStore } from '../../../stores/appStore'
 import { openVoiceInputSettings } from '../../../utils/voiceInput'
 import { toSpeakableText } from '../../../utils/voiceConversation'
 import {
@@ -18,7 +17,6 @@ interface SpeechButtonProps {
 }
 
 export function SpeechButton({ text, label }: SpeechButtonProps) {
-  const kokoroSpeakerId = useAppStore((state) => state.kokoroSpeakerId)
   const [installed, setInstalled] = useState(false)
   const [requestId, setRequestId] = useState<number | null>(null)
   const [event, setEvent] = useState<SpeechPlaybackEvent | null>(null)
@@ -47,7 +45,7 @@ export function SpeechButton({ text, label }: SpeechButtonProps) {
   const toggle = async () => {
     if (!installed) {
       // Use the operating system's installed speech voices through Web Speech API.
-      // This keeps basic Speak usable without downloading the optional Kokoro model.
+      // This keeps basic Speak usable without downloading a separate speech model.
       if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
         openVoiceInputSettings()
         return
@@ -76,7 +74,7 @@ export function SpeechButton({ text, label }: SpeechButtonProps) {
     }
     const speakableText = toSpeakableText(text)
     if (!speakableText) return
-    const nextRequest = await speakText(speakableText, 1, kokoroSpeakerId)
+    const nextRequest = await speakText(speakableText, 1)
     setRequestId(nextRequest)
   }
 
