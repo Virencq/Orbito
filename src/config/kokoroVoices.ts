@@ -83,7 +83,7 @@ export const KOKORO_VOICE_GROUPS = GROUP_ORDER.map((region) => ({
   count: KOKORO_VOICES.filter((voice) => voice.region === region).length,
 }))
 
-export const DEFAULT_KOKORO_SPEAKER_ID: KokoroSpeakerId = 47
+export const DEFAULT_KOKORO_SPEAKER_ID: KokoroSpeakerId = 26
 
 export function isKokoroSpeakerId(value: unknown): value is KokoroSpeakerId {
   return Number.isInteger(value) && (value as number) >= 0 && (value as number) <= 52
