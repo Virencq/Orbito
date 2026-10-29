@@ -16,7 +16,7 @@ use sha2::{Digest, Sha256};
 use crate::download;
 
 const STREAMING_ASR_DIR: &str = "sherpa-onnx-streaming-zipformer-en-20M-2023-02-17";
-const TTS_DIR: &str = "builtin-rust-neural-tts";
+const TTS_DIR: &str = "kokoro-multi-lang-v1_0";
 const VAD_FILE: &str = "silero_vad.onnx";
 
 const STREAMING_ASR_URL: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17.tar.bz2";
@@ -84,7 +84,18 @@ impl VoiceAssetKind {
                 "joiner-epoch-99-avg-1.int8.onnx",
                 "tokens.txt",
             ],
-            Self::Tts => &[],
+            Self::Tts => &[
+                "model.onnx",
+                "voices.bin",
+                "tokens.txt",
+                "lexicon-us-en.txt",
+                "lexicon-zh.txt",
+                "date-zh.fst",
+                "phone-zh.fst",
+                "number-zh.fst",
+                "espeak-ng-data",
+                "dict",
+            ],
             Self::Vad => &[VAD_FILE],
         }
     }
@@ -145,10 +156,6 @@ impl VoiceAssets {
     }
 
     pub fn is_installed(&self, kind: VoiceAssetKind) -> bool {
-        // TTS weights and voice assets are embedded in the pure-Rust engine.
-        if kind == VoiceAssetKind::Tts {
-            return true;
-        }
         let path = self.asset_path(kind);
         kind.required_files().iter().all(|entry| {
             let candidate = if kind == VoiceAssetKind::Vad {
@@ -190,8 +197,7 @@ impl VoiceAssets {
         github_mirror: Option<&str>,
         mut on_progress: impl FnMut(VoiceAssetProgress),
     ) -> Result<(), String> {
-        // The TTS engine is built into Orbito; there is no separate model download.
-        if kind == VoiceAssetKind::Tts || self.is_installed(kind) {
+        if self.is_installed(kind) {
             return Ok(());
         }
         {
@@ -330,9 +336,6 @@ impl VoiceAssets {
     }
 
     pub fn delete(&self, kind: VoiceAssetKind) -> Result<(), String> {
-        if kind == VoiceAssetKind::Tts {
-            return Err("The built-in TTS engine cannot be deleted.".to_owned());
-        }
         self.cancel_download();
         remove_path_if_exists(&self.asset_path(kind)).map_err(|error| {
             format!(
@@ -592,7 +595,10 @@ mod tests {
     }
 
     #[test]
-    fn built_in_tts_has_no_separate_model_files() {
-        assert!(VoiceAssetKind::Tts.required_files().is_empty());
+    fn kokoro_requires_the_chinese_text_normalization_rules() {
+        let files = VoiceAssetKind::Tts.required_files();
+        assert!(files.contains(&"date-zh.fst"));
+        assert!(files.contains(&"phone-zh.fst"));
+        assert!(files.contains(&"number-zh.fst"));
     }
 }
