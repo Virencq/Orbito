@@ -8,7 +8,7 @@ React UI. Node.js and the agent server are not involved in microphone capture or
 - On Windows, final local dictation uses the installed Windows SAPI speech recognizer; no Whisper model is downloaded. On non-Windows platforms, final dictation uses multilingual Whisper Base. The transcript is inserted into the draft and is never sent automatically.
 - Streaming captions use sherpa-onnx with a bilingual Chinese/English Zipformer model.
 - Voice activity detection uses sherpa-onnx with Silero VAD.
-- Text-to-speech uses `best-tts`, a pure-Rust, offline Kokoro-82M INT8 implementation with the model and voice assets embedded in the binary. No separate TTS model download is needed. The default voice is `af_heart`.
+- Text-to-speech uses sherpa-onnx with the Kokoro multi-language model. Download the TTS model from Voice Settings before first use; playback then runs locally.
 - Whisper is an automatic speech recognition (ASR) model: it converts spoken audio into text. It is not a text-to-speech engine. On Windows, Orbito currently uses the installed Windows SAPI recognizer for final dictation, so Whisper is not downloaded or used for that path.
 - Voice conversation mode follows `listening → thinking → speaking → listening`. A finalized user
   turn is sent to the current chat, the final assistant response is spoken, and listening resumes
@@ -27,7 +27,7 @@ revised by the recognizer.
   - `voice_assets.rs` downloads, safely extracts, validates, and deletes optional voice models.
   - `realtime.rs` owns CPAL capture, linear resampling, Silero VAD, Zipformer decoding, endpointing,
     and partial/final events.
-  - `tts.rs` owns the embedded `best-tts` engine, synthesis, CPAL playback, and playback cancellation. Synthesis itself is synchronous and cannot be interrupted mid-inference; a stop request prevents generated audio from being queued.
+  - `tts.rs` owns the sherpa-onnx Kokoro engine, incremental synthesis, CPAL playback, and playback cancellation.
 - `src-tauri/src/dictation.rs` exposes final local dictation.
 - `src-tauri/src/voice.rs` exposes model management, streaming recognition, and speech playback.
 - `src/utils/voiceRuntime.ts` is the typed frontend command/event boundary.
@@ -38,7 +38,7 @@ Captured audio remains in memory while recording. Windows SAPI dictation uses a 
 
 ## Models
 
-ASR and VAD models are downloaded only after explicit user action. The TTS model is embedded in the application binary (about 110 MB of model, voice, and lexicon assets), which increases native binary/installer size but avoids a separate runtime download.
+ASR and VAD models are downloaded only after explicit user action. TTS models are downloaded after explicit user action and are not bundled into installers.
 
 | Capability | Model | Source |
 | --- | --- | --- |
@@ -46,7 +46,7 @@ ASR and VAD models are downloaded only after explicit user action. The TTS model
 | Final dictation (non-Windows) | Whisper Base multilingual | `ggerganov/whisper.cpp` |
 | Streaming ASR | Streaming Zipformer bilingual zh/en | `k2-fsa/sherpa-onnx` releases |
 | VAD | Silero VAD ONNX | `k2-fsa/sherpa-onnx` releases |
-| TTS | `best-tts` / Kokoro-82M INT8 | [studio-ransom/best-tts-rust](https://github.com/studio-ransom/best-tts-rust), Apache-2.0; model is embedded in the application binary |
+| TTS | Kokoro multi-language v1.0 | `k2-fsa/sherpa-onnx` releases |
 
 Downloads use temporary `.part` files. Archives are extracted into a staging directory, archive
 paths are checked for traversal, required model files are validated, and only then is the model
