@@ -22,6 +22,25 @@ describe('real-time voice command boundary', () => {
     vi.mocked(invoke).mockResolvedValue(undefined)
   })
 
+  it('cancels browser Windows speech before Kokoro starts and when Stop is requested', async () => {
+    const cancel = vi.fn()
+    Object.defineProperty(window, 'speechSynthesis', {
+      configurable: true,
+      value: { cancel },
+    })
+
+    await speakText('hello')
+    expect(cancel).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('speak_text', {
+      text: 'hello',
+      speed: 1,
+      speakerId: 47,
+    })
+
+    await stopSpeaking()
+    expect(cancel).toHaveBeenCalledTimes(2)
+  })
+
   it('maps model, speech, and streaming operations to Tauri', async () => {
     await getVoiceRuntimeStatus()
     await downloadVoiceAsset('streaming-asr', 'https://mirror.example/')

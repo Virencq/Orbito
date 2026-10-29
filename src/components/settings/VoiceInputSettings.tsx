@@ -65,12 +65,28 @@ export function VoiceInputSettings() {
 
   useEffect(() => {
     if (!isTauriRuntime()) return
-    void refresh().catch((reason) => setError(String(reason))).finally(() => setStatusCheckComplete(true))
+    let active = true
     let unlisten: (() => void) | undefined
+
+    // Resolve immediately when the native status command returns; do not add
+    // an artificial wait before showing the voice settings.
+    void refresh()
+      .catch((reason) => {
+        if (active) setError(String(reason))
+      })
+      .finally(() => {
+        if (active) setStatusCheckComplete(true)
+      })
+
     void listenDictationDownloadProgress(setProgress).then((dispose) => {
-      unlisten = dispose
-    })
-    return () => unlisten?.()
+      if (active) unlisten = dispose
+      else dispose()
+    }).catch(() => undefined)
+
+    return () => {
+      active = false
+      unlisten?.()
+    }
   }, [])
 
   useEffect(() => {
