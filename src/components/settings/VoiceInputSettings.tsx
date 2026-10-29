@@ -68,20 +68,13 @@ export function VoiceInputSettings() {
     let active = true
     let unlisten: (() => void) | undefined
 
-    // A native invoke can remain pending if the installed runtime is mismatched
-    // or a command fails to initialize. Never leave this page on an infinite spinner.
-    const timeout = window.setTimeout(() => {
-      if (!active) return
-      setError('Voice support check timed out. Close and reopen Settings; if it persists, this build may have a voice-runtime mismatch.')
-      setStatusCheckComplete(true)
-    }, 8000)
-
+    // Resolve immediately when the native status command returns; do not add
+    // an artificial wait before showing the voice settings.
     void refresh()
       .catch((reason) => {
         if (active) setError(String(reason))
       })
       .finally(() => {
-        window.clearTimeout(timeout)
         if (active) setStatusCheckComplete(true)
       })
 
@@ -92,7 +85,6 @@ export function VoiceInputSettings() {
 
     return () => {
       active = false
-      window.clearTimeout(timeout)
       unlisten?.()
     }
   }, [])
