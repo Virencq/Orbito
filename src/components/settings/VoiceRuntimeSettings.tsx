@@ -36,7 +36,7 @@ const text = {
     vad: 'Voice activity detection',
     vadHint: 'Silero detects speech boundaries for continuous conversation.',
     tts: 'Text-to-speech',
-    ttsHint: 'Built-in offline neural speech synthesis. No separate model download is required.',
+    ttsHint: 'Kokoro neural speech synthesis runs locally. Download the model once to enable offline playback.',
     download: 'Download',
     remove: 'Delete',
     cancel: 'Cancel',
