@@ -15,48 +15,14 @@ use sha2::{Digest, Sha256};
 
 use crate::download;
 
-const STREAMING_ASR_DIR: &str = "sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20";
+const STREAMING_ASR_DIR: &str = "sherpa-onnx-streaming-zipformer-en-20M-2023-02-17";
 const TTS_DIR: &str = "kokoro-multi-lang-v1_0";
 const VAD_FILE: &str = "silero_vad.onnx";
 
-const STREAMING_ASR_URL: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20.tar.bz2";
+const STREAMING_ASR_URL: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17.tar.bz2";
 const TTS_URL: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_0.tar.bz2";
 const VAD_URL: &str =
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx";
-
-const MODELSCOPE_ASR_REVISION: &str = "658a5257f1342768b148d8b51c87e52a4e012262";
-const MODELSCOPE_ASR_BASE: &str =
-    "https://www.modelscope.cn/models/budaoshou/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/resolve";
-const MODELSCOPE_ASR_BYTES: u64 = 198_270_793;
-
-struct ModelScopeFile {
-    name: &'static str,
-    bytes: u64,
-    sha256: &'static str,
-}
-
-const MODELSCOPE_ASR_FILES: &[ModelScopeFile] = &[
-    ModelScopeFile {
-        name: "decoder-epoch-99-avg-1.int8.onnx",
-        bytes: 13_091_040,
-        sha256: "1a70c593d71e53f023f5f55b0b4cfff5055abb786ee3992e5f63dc2e273cc4fa",
-    },
-    ModelScopeFile {
-        name: "encoder-epoch-99-avg-1.int8.onnx",
-        bytes: 181_895_032,
-        sha256: "8fa764187a261844f859d7143ebaa563af5d10adfece4c18a8f414c88cba2a9b",
-    },
-    ModelScopeFile {
-        name: "joiner-epoch-99-avg-1.int8.onnx",
-        bytes: 3_228_404,
-        sha256: "1ed689c5ed19dbaa725d9d191bb4822b5f4855a39e1ffd28cbc1f340d25b2ee0",
-    },
-    ModelScopeFile {
-        name: "tokens.txt",
-        bytes: 56_317,
-        sha256: "a8e0e4ec53810e433789b54a5c0134a7eaa2ffca595a6334d54c00da858841d3",
-    },
-];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -86,7 +52,7 @@ impl VoiceAssetKind {
 
     fn display_name(self) -> &'static str {
         match self {
-            Self::StreamingAsr => "Streaming Zipformer Chinese + English",
+            Self::StreamingAsr => "Streaming Zipformer English 20M (int8)",
             Self::Tts => "Kokoro Chinese + English",
             Self::Vad => "Silero voice activity detector",
         }
@@ -270,17 +236,8 @@ impl VoiceAssets {
         remove_path_if_exists(&staging)?;
 
         let mut failures = Vec::new();
-        if kind == VoiceAssetKind::StreamingAsr {
-            match self.install_modelscope_asr(&staging, on_progress) {
-                Ok(()) => return Ok(()),
-                Err(error) if is_canceled(&self.cancel_download) => return Err(error),
-                Err(error) => {
-                    failures.push(format!("ModelScope: {error}"));
-                    remove_path_if_exists(&staging)?;
-                }
-            }
-        }
-
+        // Use the small English-only ASR archive rather than falling back to the
+        // previous, much larger Chinese-English model.
         let mut sources = vec![("GitHub", kind.url().to_owned())];
         if let Some(url) = github_mirror_url(github_mirror, kind.url()) {
             if url != kind.url() {
@@ -314,80 +271,6 @@ impl VoiceAssets {
             kind.display_name(),
             failures.join(" | ")
         ))
-    }
-
-    fn install_modelscope_asr(
-        &self,
-        staging: &Path,
-        on_progress: &mut impl FnMut(VoiceAssetProgress),
-    ) -> Result<(), String> {
-        fs::create_dir_all(staging)
-            .map_err(|error| format!("Could not prepare ModelScope installation: {error}"))?;
-        let direct_agent = download::direct_agent();
-        let proxy_agent = download::agent();
-        let mut completed = 0_u64;
-
-        for file in MODELSCOPE_ASR_FILES {
-            let url = format!(
-                "{MODELSCOPE_ASR_BASE}/{MODELSCOPE_ASR_REVISION}/{}",
-                file.name
-            );
-            let destination = staging.join(file.name);
-            let direct_result = download_file(
-                VoiceAssetKind::StreamingAsr,
-                "ModelScope direct",
-                &direct_agent,
-                &url,
-                &destination,
-                Some(file.sha256),
-                Some(file.bytes),
-                completed,
-                MODELSCOPE_ASR_BYTES,
-                &self.cancel_download,
-                on_progress,
-            );
-            if let Err(direct_error) = direct_result {
-                if is_canceled(&self.cancel_download) {
-                    return Err(direct_error);
-                }
-                remove_path_if_exists(&destination)?;
-                download_file(
-                    VoiceAssetKind::StreamingAsr,
-                    "ModelScope through system proxy",
-                    &proxy_agent,
-                    &url,
-                    &destination,
-                    Some(file.sha256),
-                    Some(file.bytes),
-                    completed,
-                    MODELSCOPE_ASR_BYTES,
-                    &self.cancel_download,
-                    on_progress,
-                )
-                .map_err(|proxy_error| {
-                    format!(
-                        "{} failed directly ({direct_error}) and through the system proxy ({proxy_error})",
-                        file.name
-                    )
-                })?;
-            }
-            completed += file.bytes;
-        }
-
-        on_progress(VoiceAssetProgress {
-            kind: VoiceAssetKind::StreamingAsr,
-            phase: "installing",
-            downloaded_bytes: completed,
-            total_bytes: MODELSCOPE_ASR_BYTES,
-        });
-        validate_asset(VoiceAssetKind::StreamingAsr, staging)?;
-        activate_directory(
-            staging,
-            &self.asset_path(VoiceAssetKind::StreamingAsr),
-            VoiceAssetKind::StreamingAsr,
-        )?;
-        report_ready(VoiceAssetKind::StreamingAsr, on_progress);
-        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
