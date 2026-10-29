@@ -3,10 +3,12 @@ name: Windows security and build validation
 on:
   push:
     branches:
+      - test101
       - security/phase-1-t1-csp
   pull_request:
     branches:
       - main
+      - test101
   workflow_dispatch:
 
 permissions:
