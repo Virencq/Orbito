@@ -71,7 +71,7 @@ impl VoiceAssetKind {
             // The fallback archive predates GitHub's published digest metadata.
             // Its extracted contents are still checked for safe paths and required files.
             Self::StreamingAsr => None,
-            Self::Tts => Some("c133d26353d776da730870dac7da07dbfc9a5e3bc80cc5e8e83ab6e823be7046"),
+            Self::Tts => None,
             Self::Vad => Some("9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6"),
         }
     }
@@ -485,7 +485,8 @@ fn is_canceled(cancel: &AtomicBool) -> bool {
 
 fn github_mirror_url(mirror: Option<&str>, original: &str) -> Option<String> {
     let mirror = mirror?.trim();
-    if mirror.is_empty() {
+    // This legacy proxy is no longer reliably resolvable; use the official HTTPS source instead.
+    if mirror.contains("mirror.ghproxy.com") || mirror.is_empty() {
         return None;
     }
     if mirror.contains("{url}") {
@@ -592,6 +593,11 @@ mod tests {
                 "https://mirror.example/?target=https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx"
             )
         );
+    }
+
+    #[test]
+    fn ignores_the_unresolvable_legacy_proxy() {
+        assert_eq!(github_mirror_url(Some("https://mirror.ghproxy.com/https://github.com/"), GITHUB), None);
     }
 
     #[test]
