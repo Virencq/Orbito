@@ -52,6 +52,25 @@ describe('real-time voice command boundary', () => {
     ])
   })
 
+  it('cancels browser speech before Kokoro starts and when Stop is requested', async () => {
+    const cancel = vi.fn()
+    Object.defineProperty(window, 'speechSynthesis', {
+      configurable: true,
+      value: { cancel },
+    })
+
+    await speakText('hello')
+    expect(cancel).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(invoke)).toHaveBeenCalledWith('speak_text', {
+      text: 'hello',
+      speed: 1,
+      speakerId: 47,
+    })
+
+    await stopSpeaking()
+    expect(cancel).toHaveBeenCalledTimes(2)
+  })
+
   it('requires sustained cleaned speech before interrupting playback', () => {
     const speaking = { active: true, state: 'speaking' as const }
 
