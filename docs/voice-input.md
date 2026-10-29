@@ -38,7 +38,7 @@ Captured audio remains in memory while recording. Windows SAPI dictation uses a 
 
 ## Models
 
-ASR and VAD models are downloaded only after explicit user action. The TTS model is embedded in the application binary, which increases native binary size but avoids a separate runtime download.
+ASR and VAD models are downloaded only after explicit user action. The TTS model is embedded in the application binary (about 110 MB of model, voice, and lexicon assets), which increases native binary/installer size but avoids a separate runtime download.
 
 | Capability | Model | Source |
 | --- | --- | --- |
