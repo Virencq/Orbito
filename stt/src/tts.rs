@@ -153,15 +153,15 @@ impl SpeechSynthesizer {
             .map_err(|error| format!("Could not start audio playback: {error}"))?;
 
         let input_sample_rate = audio.sample_rate as u32;
-        let samples = if input_sample_rate == output_sample_rate {
-            audio.samples
-        } else {
+        let mut samples = audio.samples;
+        if input_sample_rate != output_sample_rate {
             let mut resampler = LinearResampler::create(
                 input_sample_rate as i32,
                 output_sample_rate as i32,
-            ).ok_or_else(|| "Could not create the speaker resampler.".to_owned())?;
-            resampler.resample(&audio.samples, true)
-        };
+            )
+            .ok_or_else(|| "Could not create the speaker resampler.".to_owned())?;
+            samples = resampler.resample(&samples, true);
+        }
         if self.current_request.load(Ordering::SeqCst) != request_id {
             playback.stop();
             return Ok(());
