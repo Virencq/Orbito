@@ -8,7 +8,8 @@ React UI. Node.js and the agent server are not involved in microphone capture or
 - On Windows, final local dictation uses the installed Windows SAPI speech recognizer; no Whisper model is downloaded. On non-Windows platforms, final dictation uses multilingual Whisper Base. The transcript is inserted into the draft and is never sent automatically.
 - Streaming captions use sherpa-onnx with a bilingual Chinese/English Zipformer model.
 - Voice activity detection uses sherpa-onnx with Silero VAD.
-- Text-to-speech uses sherpa-onnx with the Chinese/English Kokoro model.
+- Text-to-speech currently uses sherpa-onnx with the Kokoro model. Piper TTS and KittenTTS Nano INT8 are planned alternatives; they are not wired into playback yet.
+- Whisper is an automatic speech recognition (ASR) model: it converts spoken audio into text. It is not a text-to-speech engine. On Windows, Orbito currently uses the installed Windows SAPI recognizer for final dictation, so Whisper is not downloaded or used for that path.
 - Voice conversation mode follows `listening → thinking → speaking → listening`. A finalized user
   turn is sent to the current chat, the final assistant response is spoken, and listening resumes
   after playback.
@@ -47,7 +48,9 @@ installers.
 | Final dictation (non-Windows) | Whisper Base multilingual | `ggerganov/whisper.cpp` |
 | Streaming ASR | Streaming Zipformer bilingual zh/en | `k2-fsa/sherpa-onnx` releases |
 | VAD | Silero VAD ONNX | `k2-fsa/sherpa-onnx` releases |
-| TTS | Kokoro multi-language v1.0 | `k2-fsa/sherpa-onnx` releases |
+| TTS (current) | Kokoro multi-language v1.0 | `k2-fsa/sherpa-onnx` releases |
+| TTS (planned) | Piper TTS | Not integrated; evaluate model/voice licensing before distribution |
+| TTS (planned) | KittenTTS Nano INT8 | Not integrated; evaluate runtime compatibility and model/voice licensing before distribution |
 
 Downloads use temporary `.part` files. Archives are extracted into a staging directory, archive
 paths are checked for traversal, required model files are validated, and only then is the model
