@@ -1,5 +1,6 @@
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
+    path::Path,
     sync::{
         atomic::{AtomicBool, AtomicU64, Ordering},
         Arc, Mutex,
@@ -13,8 +14,10 @@ use cpal::{
     SampleFormat, Stream, StreamConfig,
 };
 use serde::Serialize;
-use best_tts::{Engine, Options};
-use sherpa_onnx::LinearResampler;
+use sherpa_onnx::{
+    GenerationConfig, LinearResampler, OfflineTts, OfflineTtsConfig, OfflineTtsKokoroModelConfig,
+    OfflineTtsModelConfig,
+};
 
 use crate::{
     playback::PlaybackReference,
@@ -22,7 +25,65 @@ use crate::{
 };
 
 const OUTPUT_DRAIN_GRACE: Duration = Duration::from_millis(120);
-const DEFAULT_VOICE: &str = "af_heart";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct KokoroSpeaker(i32);
+
+impl KokoroSpeaker {
+    const fn id(self) -> i32 {
+        self.0
+    }
+
+    const fn prefers_chinese(self) -> bool {
+        self.0 >= 45
+    }
+}
+
+fn contains_han(text: &str) -> bool {
+    text.chars().any(|character| {
+        matches!(
+            character,
+            '\u{3400}'..='\u{4DBF}' | '\u{4E00}'..='\u{9FFF}' | '\u{F900}'..='\u{FAFF}'
+        )
+    })
+}
+
+fn should_use_chinese_text_rules(text: &str, speaker: KokoroSpeaker) -> bool {
+    if contains_han(text) {
+        return true;
+    }
+    let has_digit = text.chars().any(|character| character.is_ascii_digit());
+    let has_latin = text
+        .chars()
+        .any(|character| character.is_ascii_alphabetic());
+    speaker.prefers_chinese() && has_digit && !has_latin
+}
+
+fn chinese_rule_fsts(root: &Path) -> String {
+    ["date-zh.fst", "phone-zh.fst", "number-zh.fst"]
+        .map(|name| root.join(name).to_string_lossy().into_owned())
+        .join(",")
+}
+
+impl Default for KokoroSpeaker {
+    fn default() -> Self {
+        Self(47)
+    }
+}
+
+impl TryFrom<i32> for KokoroSpeaker {
+    type Error = String;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        if (0..=52).contains(&value) {
+            Ok(Self(value))
+        } else {
+            Err(format!(
+                "Unsupported Kokoro speaker ID {value}. Choose a value from 0 to 52."
+            ))
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -45,7 +106,7 @@ pub struct SpeechPlaybackEvent {
 pub struct SpeechSynthesizer {
     assets: Arc<VoiceAssets>,
     playback_reference: Arc<PlaybackReference>,
-    engine: Mutex<Option<Arc<Engine>>>,
+    engines: Mutex<HashMap<bool, Arc<OfflineTts>>>,
     generation: AtomicU64,
     current_request: Arc<AtomicU64>,
     speaking: AtomicBool,
@@ -57,7 +118,7 @@ impl SpeechSynthesizer {
         Self {
             assets,
             playback_reference,
-            engine: Mutex::new(None),
+            engines: Mutex::new(HashMap::new()),
             generation: AtomicU64::new(0),
             current_request: Arc::new(AtomicU64::new(0)),
             speaking: AtomicBool::new(false),
@@ -83,6 +144,10 @@ impl SpeechSynthesizer {
         if !self.assets.is_installed(VoiceAssetKind::Tts) {
             return Err("Install the local text-to-speech model in Settings first.".to_owned());
         }
+        let speaker = speaker_id
+            .map(KokoroSpeaker::try_from)
+            .transpose()?
+            .unwrap_or_default();
 
         self.stop();
         let request_id = self.generation.fetch_add(1, Ordering::SeqCst) + 1;
@@ -98,7 +163,7 @@ impl SpeechSynthesizer {
         let synthesizer = self.clone();
         thread::spawn(move || {
             if let Err(error) =
-                synthesizer.run_speech(request_id, &text, speed, speaker_id, on_event.clone())
+                synthesizer.run_speech(request_id, &text, speed, speaker, on_event.clone())
             {
                 if synthesizer.current_request.load(Ordering::SeqCst) == request_id {
                     let _ = synthesizer.stop();
@@ -119,28 +184,13 @@ impl SpeechSynthesizer {
         request_id: u64,
         text: &str,
         speed: f32,
-        _speaker_id: Option<i32>,
+        speaker: KokoroSpeaker,
         on_event: Arc<dyn Fn(SpeechPlaybackEvent) + Send + Sync>,
     ) -> Result<(), String> {
-        let engine = self.load_engine()?;
+        let use_chinese_rules = should_use_chinese_text_rules(text, speaker);
+        let engine = self.load_engine(use_chinese_rules)?;
         if self.current_request.load(Ordering::SeqCst) != request_id {
             return Ok(());
-        }
-
-        // best-tts performs inference synchronously; cancellation is checked immediately
-        // after generation, before any audio is sent to the output device.
-        let audio = engine
-            .say_with(
-                text,
-                DEFAULT_VOICE,
-                Options { speed: speed.clamp(0.7, 1.4), ..Options::default() },
-            )
-            .map_err(|error| format!("Text-to-speech generation failed: {error}"))?;
-        if self.current_request.load(Ordering::SeqCst) != request_id {
-            return Ok(());
-        }
-        if audio.samples.is_empty() {
-            return Err("Text-to-speech generated no audio.".to_owned());
         }
 
         let (output_stream, playback, output_sample_rate) =
@@ -152,20 +202,22 @@ impl SpeechSynthesizer {
             .play()
             .map_err(|error| format!("Could not start audio playback: {error}"))?;
 
-        let input_sample_rate = audio.sample_rate as u32;
-        let mut samples = audio.samples;
-        if input_sample_rate != output_sample_rate {
-            let mut resampler = LinearResampler::create(
-                input_sample_rate as i32,
-                output_sample_rate as i32,
+        let sample_rate = engine.sample_rate() as u32;
+        let callback_request = self.current_request.clone();
+        let callback_playback = playback.clone();
+        let callback_event = on_event.clone();
+        let received_audio = Arc::new(AtomicBool::new(false));
+        let callback_received_audio = received_audio.clone();
+        let mut last_progress = -1.0_f32;
+        let output_resampler = Arc::new(Mutex::new(if sample_rate == output_sample_rate {
+            None
+        } else {
+            Some(
+                LinearResampler::create(sample_rate as i32, output_sample_rate as i32)
+                    .ok_or_else(|| "Could not create the speaker resampler.".to_owned())?,
             )
-            .ok_or_else(|| "Could not create the speaker resampler.".to_owned())?;
-            samples = resampler.resample(&samples, true);
-        }
-        if self.current_request.load(Ordering::SeqCst) != request_id {
-            playback.stop();
-            return Ok(());
-        }
+        }));
+        let callback_resampler = output_resampler.clone();
 
         on_event(SpeechPlaybackEvent {
             request_id,
@@ -173,21 +225,73 @@ impl SpeechSynthesizer {
             progress: 0.0,
             message: None,
         });
-        let total_samples = samples.len().max(1) as f32;
-        playback.push(&samples);
+
+        let config = GenerationConfig {
+            sid: speaker.id(),
+            speed: speed.clamp(0.7, 1.4),
+            ..Default::default()
+        };
+        let generated = engine.generate_with_config(
+            text,
+            &config,
+            Some(move |samples: &[f32], progress: f32| {
+                if callback_request.load(Ordering::SeqCst) != request_id {
+                    return false;
+                }
+                if !samples.is_empty() {
+                    callback_received_audio.store(true, Ordering::SeqCst);
+                    let samples = match callback_resampler.lock() {
+                        Ok(resampler) => match resampler.as_ref() {
+                            Some(resampler) => resampler.resample(samples, false),
+                            None => samples.to_vec(),
+                        },
+                        Err(_) => return false,
+                    };
+                    callback_playback.push(&samples);
+                }
+                if progress >= 1.0 || progress - last_progress >= 0.05 {
+                    last_progress = progress;
+                    callback_event(SpeechPlaybackEvent {
+                        request_id,
+                        state: SpeechPlaybackState::Speaking,
+                        progress,
+                        message: None,
+                    });
+                }
+                true
+            }),
+        );
+
+        if self.current_request.load(Ordering::SeqCst) != request_id {
+            playback.stop();
+            return Ok(());
+        }
+        let audio = generated.ok_or_else(|| "Text-to-speech generation failed.".to_owned())?;
+        if !received_audio.load(Ordering::SeqCst) && !audio.samples().is_empty() {
+            let samples = match output_resampler.lock() {
+                Ok(resampler) => match resampler.as_ref() {
+                    Some(resampler) => resampler.resample(audio.samples(), false),
+                    None => audio.samples().to_vec(),
+                },
+                Err(_) => return Err("The speaker resampler is unavailable.".to_owned()),
+            };
+            playback.push(&samples);
+        }
+        if let Ok(resampler) = output_resampler.lock() {
+            if let Some(resampler) = resampler.as_ref() {
+                playback.push(&resampler.resample(&[], true));
+            }
+        }
+
         while !playback.is_empty()
             && !playback.is_stopped()
             && self.current_request.load(Ordering::SeqCst) == request_id
         {
-            let remaining = playback.samples.lock().map(|queue| queue.len()).unwrap_or(0);
-            on_event(SpeechPlaybackEvent {
-                request_id,
-                state: SpeechPlaybackState::Speaking,
-                progress: (1.0 - remaining as f32 / total_samples).clamp(0.0, 1.0),
-                message: None,
-            });
-            thread::sleep(Duration::from_millis(25));
+            thread::sleep(Duration::from_millis(10));
         }
+        // The output callback removes a whole device buffer from the queue before
+        // the hardware has rendered it. Keep the stream alive for one short
+        // playout grace period so the last synthesized samples are not truncated.
         if !playback.is_stopped() && self.current_request.load(Ordering::SeqCst) == request_id {
             thread::sleep(OUTPUT_DRAIN_GRACE);
         }
@@ -204,22 +308,48 @@ impl SpeechSynthesizer {
                 message: None,
             });
         }
-        drop(output_stream);
         Ok(())
     }
 
-    fn load_engine(&self) -> Result<Arc<Engine>, String> {
-        let mut cached = self.engine
+    fn load_engine(&self, use_chinese_rules: bool) -> Result<Arc<OfflineTts>, String> {
+        let mut cached = self
+            .engines
             .lock()
             .map_err(|_| "The text-to-speech engine is unavailable.".to_owned())?;
-        if let Some(engine) = cached.as_ref() {
+        if let Some(engine) = cached.get(&use_chinese_rules) {
             return Ok(engine.clone());
         }
-        let engine = Arc::new(
-            Engine::embedded()
-                .map_err(|error| format!("Could not initialize the built-in TTS engine: {error}"))?,
-        );
-        *cached = Some(engine.clone());
+
+        let root = self.assets.asset_path(VoiceAssetKind::Tts);
+        let path = |name: &str| root.join(name).to_string_lossy().into_owned();
+        let config = OfflineTtsConfig {
+            model: OfflineTtsModelConfig {
+                kokoro: OfflineTtsKokoroModelConfig {
+                    model: Some(path("model.onnx")),
+                    voices: Some(path("voices.bin")),
+                    tokens: Some(path("tokens.txt")),
+                    data_dir: Some(path("espeak-ng-data")),
+                    dict_dir: Some(path("dict")),
+                    lexicon: Some(format!(
+                        "{},{}",
+                        path("lexicon-us-en.txt"),
+                        path("lexicon-zh.txt")
+                    )),
+                    length_scale: 1.0,
+                    ..Default::default()
+                },
+                num_threads: 2,
+                provider: Some("cpu".to_owned()),
+                ..Default::default()
+            },
+            rule_fsts: use_chinese_rules.then(|| chinese_rule_fsts(&root)),
+            ..Default::default()
+        };
+        let engine =
+            Arc::new(OfflineTts::create(&config).ok_or_else(|| {
+                "Could not initialize the local text-to-speech model.".to_owned()
+            })?);
+        cached.insert(use_chinese_rules, engine.clone());
         Ok(engine)
     }
 
@@ -236,8 +366,8 @@ impl SpeechSynthesizer {
 
     pub fn reset_model(&self) {
         let _ = self.stop();
-        if let Ok(mut engine) = self.engine.lock() {
-            *engine = None;
+        if let Ok(mut engines) = self.engines.lock() {
+            engines.clear();
         }
     }
 }
@@ -401,3 +531,77 @@ fn fill_output<T: Copy>(
     playback_reference.publish(sample_rate, &played);
 }
 
+#[cfg(test)]
+mod tests {
+    use super::{chinese_rule_fsts, should_use_chinese_text_rules, KokoroSpeaker};
+    use std::path::Path;
+
+    #[test]
+    fn accepts_every_speaker_from_the_bundled_model() {
+        let ids: Vec<i32> = (0..=52)
+            .map(|id| {
+                KokoroSpeaker::try_from(id)
+                    .expect("Bundled speaker should be valid")
+                    .id()
+            })
+            .collect();
+
+        assert_eq!(ids, (0..=52).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn rejects_unknown_speakers() {
+        assert!(KokoroSpeaker::try_from(-1).is_err());
+        assert!(KokoroSpeaker::try_from(53).is_err());
+    }
+
+    #[test]
+    fn defaults_to_xiaoxiao() {
+        assert_eq!(KokoroSpeaker::default().id(), 47);
+    }
+
+    #[test]
+    fn enables_chinese_rules_for_chinese_and_mixed_text() {
+        let chinese_voice = KokoroSpeaker::default();
+        assert!(should_use_chinese_text_rules(
+            "现在是2026年8月2日。",
+            chinese_voice
+        ));
+        assert!(should_use_chinese_text_rules(
+            "S-Loop 已完成 80% of the task.",
+            chinese_voice
+        ));
+    }
+
+    #[test]
+    fn keeps_pure_english_numbers_on_the_english_path() {
+        let chinese_voice = KokoroSpeaker::default();
+        assert!(!should_use_chinese_text_rules(
+            "S-Loop completed 80% of the task in 2026.",
+            chinese_voice
+        ));
+        assert!(!should_use_chinese_text_rules(
+            "Call 123456 now.",
+            chinese_voice
+        ));
+    }
+
+    #[test]
+    fn uses_the_selected_voice_for_number_only_text() {
+        let chinese_voice = KokoroSpeaker::default();
+        let american_voice = KokoroSpeaker::try_from(0).unwrap();
+
+        assert!(should_use_chinese_text_rules("123456", chinese_voice));
+        assert!(!should_use_chinese_text_rules("123456", american_voice));
+    }
+
+    #[test]
+    fn loads_date_phone_and_number_rules_in_specific_to_general_order() {
+        let root = Path::new("C:/models/kokoro");
+        let expected = ["date-zh.fst", "phone-zh.fst", "number-zh.fst"]
+            .map(|name| root.join(name).to_string_lossy().into_owned())
+            .join(",");
+
+        assert_eq!(chinese_rule_fsts(root), expected);
+    }
+}
