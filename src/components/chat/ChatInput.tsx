@@ -518,7 +518,7 @@ export function ChatInput({
         !voiceAsset(current, 'streaming-asr')?.installed ||
         !voiceAsset(current, 'vad')?.installed
       ) {
-        openVoiceInputSettings()
+        setDictationError('Required voice models are missing. Open Settings → Voice Input to install them.')
         return
       }
       turnSubmittedRef.current = false
