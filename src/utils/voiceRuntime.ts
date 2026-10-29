@@ -68,10 +68,20 @@ export const speakText = (
   text: string,
   speed = 1,
   speakerId: KokoroSpeakerId = DEFAULT_KOKORO_SPEAKER_ID,
-) => invoke<number>('speak_text', { text, speed, speakerId })
+) => {
+  // Cancel browser-owned Windows/WebView speech before native Kokoro starts.
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    window.speechSynthesis.cancel()
+  }
+  return invoke<number>('speak_text', { text, speed, speakerId })
+}
 
-export const stopSpeaking = () =>
-  invoke<void>('stop_speaking')
+export const stopSpeaking = () => {
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    window.speechSynthesis.cancel()
+  }
+  return invoke<void>('stop_speaking')
+}
 
 export const startRealtimeVoice = () =>
   invoke<VoiceRuntimeStatus>('start_realtime_voice')
