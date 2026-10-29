@@ -74,6 +74,7 @@ interface AppState {
   codeSessionIds: string[]
   fileTreeVersion: number
   kokoroSpeakerId: KokoroSpeakerId
+  handsfreeEnabled: boolean
 
   // Skill mirror config
   githubMirror: string
@@ -132,6 +133,7 @@ interface AppState {
   markCodeSession: (id: string) => void
   incrementFileTreeVersion: () => void
   setKokoroSpeakerId: (speakerId: KokoroSpeakerId) => void
+  setHandsfreeEnabled: (enabled: boolean) => void
 
   // Actions - Companion
   setCompanion: (companion: Companion | null) => void
@@ -180,6 +182,7 @@ export const useAppStore = create<AppState>()(
       codeSessionIds: [],
       fileTreeVersion: 0,
       kokoroSpeakerId: DEFAULT_KOKORO_SPEAKER_ID,
+      handsfreeEnabled: false,
       githubMirror: 'https://mirror.ghproxy.com/https://github.com/',
       npmRegistryMirror: 'https://registry.npmmirror.com',
       companion: null,
@@ -674,6 +677,7 @@ export const useAppStore = create<AppState>()(
       setKokoroSpeakerId: (speakerId) => set({
         kokoroSpeakerId: normalizeKokoroSpeakerId(speakerId),
       }),
+      setHandsfreeEnabled: (enabled) => set({ handsfreeEnabled: enabled }),
 
       // ---- Companion actions ----
 
@@ -699,6 +703,7 @@ export const useAppStore = create<AppState>()(
         githubMirror: state.githubMirror,
         npmRegistryMirror: state.npmRegistryMirror,
         kokoroSpeakerId: state.kokoroSpeakerId,
+        handsfreeEnabled: state.handsfreeEnabled,
       }),
       version: 6,
       migrate: (persistedState, version) => {
