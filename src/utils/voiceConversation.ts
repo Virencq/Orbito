@@ -1,4 +1,5 @@
 import { speakText, stopSpeaking } from './voiceRuntime'
+import { useAppStore } from '../stores/appStore'
 
 export type VoiceConversationState =
   | 'inactive'
@@ -74,7 +75,7 @@ export const speakVoiceConversationResponse = async (markdown: string) => {
   try {
     // Prevent any pending OS/Web Speech utterance from overlapping Kokoro.
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
-    await speakText(text, 1, (await import('../stores/appStore')).useAppStore.getState().kokoroSpeakerId)
+    await speakText(text, 1, useAppStore.getState().kokoroSpeakerId)
     return true
   } catch (reason) {
     setVoiceConversation(false, 'error', String(reason))
