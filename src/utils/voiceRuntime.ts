@@ -67,14 +67,28 @@ export const cancelVoiceAssetDownload = () =>
 export const deleteVoiceAsset = (kind: VoiceAssetKind) =>
   invoke<VoiceRuntimeStatus>('delete_voice_asset', { kind })
 
+// The Web Speech API uses the installed Windows voice on Windows WebView. Cancel
+// any browser-owned utterance before starting native Kokoro, and cancel both
+// playback paths when Stop is requested. Keep this defensive for non-browser tests.
+const stopBrowserSpeech = () => {
+  if (typeof window === 'undefined') return
+  if (!('speechSynthesis' in window)) return
+  window.speechSynthesis.cancel()
+}
+
 export const speakText = (
   text: string,
   speed = 1,
   speakerId: KokoroSpeakerId = DEFAULT_KOKORO_SPEAKER_ID,
-) => invoke<number>('speak_text', { text, speed, speakerId })
+) => {
+  stopBrowserSpeech()
+  return invoke<number>('speak_text', { text, speed, speakerId })
+}
 
-export const stopSpeaking = () =>
-  invoke<void>('stop_speaking')
+export const stopSpeaking = () => {
+  stopBrowserSpeech()
+  return invoke<void>('stop_speaking')
+}
 
 export const startRealtimeVoice = () =>
   invoke<VoiceRuntimeStatus>('start_realtime_voice')
