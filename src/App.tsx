@@ -471,6 +471,11 @@ function App() {
   }, [])
 
   const newTask = () => {
+    // New chat should always return to the chat composer, even when Settings
+    // was opened from a voice control and is still covering the main view.
+    setShowSettings(false)
+    setSettingsInitialTab('provider')
+
     const state = useAppStore.getState()
     const currentId = state.activeSessionId
     // Do not persist a blank task. Create a session only when the first prompt is sent.
@@ -482,6 +487,7 @@ function App() {
     // working directory. Project-specific chats set this explicitly in their
     // project action handlers.
     setWorkspaceDir(null)
+    setCodeMode(false)
     navigateToPage('chat')
   }
 
