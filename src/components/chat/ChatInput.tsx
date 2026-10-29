@@ -587,9 +587,7 @@ export function ChatInput({
     const onHandsfreeToggle = (event: Event) => {
       const detail = (event as CustomEvent<{ enabled?: boolean }>).detail
       if (!detail || typeof detail.enabled !== 'boolean') return
-      if (detail.enabled) {
-        void toggleConversationRef.current()
-      } else if (getVoiceConversation().active) {
+      if (!detail.enabled && getVoiceConversation().active) {
         setVoiceConversation(false)
         realtimeModeRef.current = null
         setRealtimeMode(null)
