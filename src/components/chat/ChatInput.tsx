@@ -582,21 +582,26 @@ export function ChatInput({
   const toggleConversationRef = useRef(toggleConversation)
   toggleConversationRef.current = toggleConversation
   const handsfreeStartedRef = useRef(false)
+  const handsfreeStartingRef = useRef(false)
 
   useEffect(() => {
     const onHandsfreeToggle = (event: Event) => {
       const detail = (event as CustomEvent<{ enabled?: boolean }>).detail
       if (!detail || typeof detail.enabled !== 'boolean') return
-      if (!detail.enabled && getVoiceConversation().active) {
-        setVoiceConversation(false)
-        realtimeModeRef.current = null
-        setRealtimeMode(null)
-        setRealtimePartial('')
-        setRealtimeLevel(0)
-        void Promise.all([
-          cancelRealtimeVoice().catch(() => undefined),
-          stopSpeaking().catch(() => undefined),
-        ])
+      if (!detail.enabled) {
+        handsfreeStartedRef.current = false
+        handsfreeStartingRef.current = false
+        if (getVoiceConversation().active) {
+          setVoiceConversation(false)
+          realtimeModeRef.current = null
+          setRealtimeMode(null)
+          setRealtimePartial('')
+          setRealtimeLevel(0)
+          void Promise.all([
+            cancelRealtimeVoice().catch(() => undefined),
+            stopSpeaking().catch(() => undefined),
+          ])
+        }
       }
     }
     window.addEventListener('orbito:handsfree-toggle', onHandsfreeToggle)
@@ -604,10 +609,28 @@ export function ChatInput({
   }, [])
 
   useEffect(() => {
-    if (!handsfreeEnabled || handsfreeStartedRef.current || !isTauriRuntime()) return
-    handsfreeStartedRef.current = true
+    if (!handsfreeEnabled) {
+      handsfreeStartedRef.current = false
+      handsfreeStartingRef.current = false
+      return
+    }
+    if (
+      handsfreeStartedRef.current ||
+      handsfreeStartingRef.current ||
+      !isTauriRuntime() ||
+      voiceRuntimeAvailable !== true
+    ) return
+
+    // Wait until runtime status has loaded before attempting the automatic start.
+    // A failed/missing-assets attempt must not permanently consume the one-shot guard.
+    handsfreeStartingRef.current = true
     void toggleConversationRef.current()
-  }, [handsfreeEnabled])
+      .catch((reason) => setDictationError(String(reason)))
+      .finally(() => {
+        handsfreeStartingRef.current = false
+        handsfreeStartedRef.current = getVoiceConversation().active
+      })
+  }, [handsfreeEnabled, voiceRuntimeAvailable, voiceRuntime, conversationReady])
 
   // Auto-resize logic
   // Keep an empty/reopened composer compact. HeroUI can retain the previous
