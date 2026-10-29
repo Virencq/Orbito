@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
   Activity,
-  Check,
   Download,
   LoaderCircle,
   Radio,
@@ -10,12 +9,6 @@ import {
   Volume2,
   X,
 } from 'lucide-react'
-import {
-  getKokoroVoiceLabel,
-  getKokoroVoice,
-  KOKORO_VOICES,
-  type KokoroVoiceGender,
-} from '../../config/kokoroVoices'
 import { useAppStore } from '../../stores/appStore'
 import {
   cancelVoiceAssetDownload,
@@ -43,19 +36,7 @@ const text = {
     vad: 'Voice activity detection',
     vadHint: 'Silero detects speech boundaries for continuous conversation.',
     tts: 'Text-to-speech',
-    ttsHint: 'Kokoro currently speaks assistant responses locally. Piper and KittenTTS are planned alternatives.',
-    voice: 'Voice library',
-    voiceHint: '53 bundled voices are available. Voice quality and accent vary by speaker.',
-    recommended: 'Recommended Chinese',
-    american: 'American',
-    british: 'British',
-    other: 'Other accents',
-    allVoices: 'All 53',
-    allGenders: 'All voices',
-    searchVoice: 'Search name or ID',
-    experimental: 'Experimental for Chinese',
-    female: 'Female',
-    male: 'Male',
+    ttsHint: 'Built-in offline neural speech synthesis. No separate model download is required.',
     download: 'Download',
     remove: 'Delete',
     cancel: 'Cancel',
@@ -75,25 +56,9 @@ const formatBytes = (bytes: number) => {
   return `${(bytes / 1024 / 1024).toFixed(1)} MiB`
 }
 
-const REGION_LABELS = {
-  american: 'American', british: 'British', spanish: 'Spanish', french: 'French',
-  hindi: 'Hindi', italian: 'Italian', japanese: 'Japanese', portuguese: 'Portuguese', chinese: 'Chinese',
-} as const
-
 export function VoiceRuntimeSettings() {
   const copy = text.en
   const githubMirror = useAppStore((state) => state.githubMirror)
-  const kokoroSpeakerId = useAppStore((state) => state.kokoroSpeakerId)
-  const setKokoroSpeakerId = useAppStore((state) => state.setKokoroSpeakerId)
-  const selectedVoice = getKokoroVoice(kokoroSpeakerId)
-  const [voiceTab, setVoiceTab] = useState<'recommended' | 'american' | 'british' | 'other' | 'all'>(() => {
-    if (selectedVoice.region === 'chinese') return 'recommended'
-    if (selectedVoice.region === 'american') return 'american'
-    if (selectedVoice.region === 'british') return 'british'
-    return 'other'
-  })
-  const [voiceGender, setVoiceGender] = useState<'all' | KokoroVoiceGender>('all')
-  const [voiceQuery, setVoiceQuery] = useState('')
   const [status, setStatus] = useState<VoiceRuntimeStatus | null>(null)
   const [progress, setProgress] = useState<VoiceAssetProgress | null>(null)
   const [busy, setBusy] = useState<VoiceAssetKind | null>(null)
@@ -133,22 +98,6 @@ export function VoiceRuntimeSettings() {
     )
   }, [progress])
 
-  const visibleVoices = useMemo(() => {
-    const query = voiceQuery.trim().toLowerCase()
-    return KOKORO_VOICES.filter((voice) => {
-      const inTab =
-        voiceTab === 'all' ||
-        (voiceTab === 'recommended' && voice.region === 'chinese') ||
-        (voiceTab === 'american' && voice.region === 'american') ||
-        (voiceTab === 'british' && voice.region === 'british') ||
-        (voiceTab === 'other' && !['chinese', 'american', 'british'].includes(voice.region))
-      const matchesGender = voiceGender === 'all' || voice.gender === voiceGender
-      const label = getKokoroVoiceLabel(voice, false).toLowerCase()
-      const matchesQuery = !query || label.includes(query) || voice.modelName.includes(query) || String(voice.id) === query
-      return inTab && matchesGender && matchesQuery
-    })
-  }, [voiceGender, voiceQuery, voiceTab])
-
   const install = async (kind: VoiceAssetKind) => {
     setBusy(kind)
     setProgress(null)
@@ -181,10 +130,8 @@ export function VoiceRuntimeSettings() {
       if (playback?.state === 'loading' || playback?.state === 'speaking') {
         await stopSpeaking()
       } else {
-        const sample = selectedVoice.textLanguage === 'zh'
-          ? 'Hello, this is S-Loop. The number 123 should be read as one hundred twenty-three.'
-          : 'Hello, this is S-Loop. The number 123 is ready for playback.'
-        await speakText(sample, 1, kokoroSpeakerId)
+        const sample = 'Hello, this is Orbito. The local neural speech engine is ready for playback.'
+        await speakText(sample, 1)
       }
     } catch (reason) {
       setError(String(reason))
@@ -247,135 +194,6 @@ export function VoiceRuntimeSettings() {
                     {hint}
                   </p>
 
-                  {kind === 'tts' && (
-                    <div className="mt-3 max-w-sm">
-                      <label htmlFor="tts-engine" className="mb-1 block text-xs font-semibold text-text">
-                        Speech engine
-                      </label>
-                      <select
-                        id="tts-engine"
-                        value="kokoro"
-                        onChange={() => undefined}
-                        aria-describedby="tts-engine-status"
-                        className="w-full rounded-lg border border-border bg-surface-secondary/60 px-3 py-2 text-xs text-text outline-none focus:border-accent"
-                      >
-                        <option value="kokoro">Kokoro — current engine</option>
-                        <option value="piper" disabled>Piper TTS — planned</option>
-                        <option value="kitten" disabled>KittenTTS Nano INT8 — planned</option>
-                      </select>
-                      <p id="tts-engine-status" className="mt-1 text-[11px] leading-4 text-text-tertiary">
-                        Piper and KittenTTS are shown as future options only; they are not integrated yet. Kokoro remains the active engine.
-                      </p>
-                    </div>
-                  )}
-
-                  {asset?.installed && kind === 'tts' && (
-                    <fieldset className="mt-4 rounded-lg border border-border/80 bg-surface p-3">
-                      <legend className="sr-only">{copy.voice}</legend>
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-xs font-semibold text-text">
-                            {copy.voice}
-                          </div>
-                          <p className="mt-0.5 text-[11px] leading-4 text-text-tertiary">
-                            {copy.voiceHint}
-                          </p>
-                        </div>
-                        <span className="shrink-0 rounded-full bg-accent-subtle px-2 py-1 text-[10px] font-bold text-accent">
-                          Kokoro · {selectedVoice.id}
-                        </span>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {([
-                          ['recommended', copy.recommended],
-                          ['american', copy.american],
-                          ['british', copy.british],
-                          ['other', copy.other],
-                          ['all', copy.allVoices],
-                        ] as const).map(([tab, label]) => (
-                          <button
-                            key={tab}
-                            type="button"
-                            onClick={() => setVoiceTab(tab)}
-                            className={`rounded-full px-2.5 py-1.5 text-[10px] font-bold transition-colors ${
-                              voiceTab === tab
-                                ? 'bg-accent text-accent-foreground'
-                                : 'bg-surface-secondary text-text-secondary hover:text-text'
-                            }`}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <input
-                          type="search"
-                          value={voiceQuery}
-                          onChange={(event) => setVoiceQuery(event.target.value)}
-                          placeholder={copy.searchVoice}
-                          aria-label={copy.searchVoice}
-                          className="min-w-36 flex-1 rounded-lg border border-border bg-surface-secondary/60 px-3 py-2 text-xs text-text outline-none focus:border-accent"
-                        />
-                        <select
-                          value={voiceGender}
-                          onChange={(event) => setVoiceGender(event.target.value as 'all' | KokoroVoiceGender)}
-                          aria-label={copy.allGenders}
-                          className="rounded-lg border border-border bg-surface-secondary/60 px-2 py-2 text-xs text-text outline-none focus:border-accent"
-                        >
-                          <option value="all">{copy.allGenders}</option>
-                          <option value="female">{copy.female}</option>
-                          <option value="male">{copy.male}</option>
-                        </select>
-                      </div>
-                      <div
-                        className="mt-3 grid max-h-72 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-4"
-                        role="radiogroup"
-                        aria-label={copy.voice}
-                      >
-                        {visibleVoices.map((voice) => {
-                          const selected = voice.id === kokoroSpeakerId
-                          const gender = voice.gender === 'female' ? copy.female : copy.male
-                          const voiceLabel = getKokoroVoiceLabel(voice, false)
-                          const region = REGION_LABELS[voice.region]
-                          return (
-                            <button
-                              key={voice.id}
-                              type="button"
-                              role="radio"
-                              aria-checked={selected}
-                              aria-label={`${voiceLabel} · ${region} · ${gender}`}
-                              onClick={() => setKokoroSpeakerId(voice.id)}
-                              className={`relative rounded-lg border px-3 py-2.5 text-left transition-colors ${
-                                selected
-                                  ? 'border-accent bg-accent-subtle text-accent'
-                                  : 'border-border bg-surface-secondary/60 text-text hover:border-accent/45 hover:bg-surface-secondary'
-                              }`}
-                            >
-                              {selected && (
-                                <Check
-                                  size={12}
-                                  className="absolute right-2 top-2"
-                                  aria-hidden="true"
-                                />
-                              )}
-                              <span className="block text-sm font-semibold">
-                                {voiceLabel}
-                              </span>
-                              <span className="mt-0.5 block text-[10px] opacity-65">
-                                {region} · {gender} · ID {voice.id}
-                              </span>
-                              {voice.region !== 'chinese' && (
-                                <span className="mt-1 block text-[9px] opacity-50">
-                                  {copy.experimental}
-                                </span>
-                              )}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </fieldset>
-                  )}
-
                   {downloading && currentProgress && (
                     <div className="mt-3">
                       <div className="mb-1 flex justify-between text-[11px] text-text-tertiary">
@@ -435,10 +253,10 @@ export function VoiceRuntimeSettings() {
                           ? copy.installing
                           : playback?.state === 'speaking'
                             ? copy.stop
-                            : `${copy.test} · ${getKokoroVoiceLabel(selectedVoice, false)}`}
+                             : copy.test}
                       </button>
                     )}
-                    {asset?.installed && (
+                    {asset?.installed && kind !== 'tts' && (
                       <button
                         className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-500/10"
                         disabled={busy !== null}
