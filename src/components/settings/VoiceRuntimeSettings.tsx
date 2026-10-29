@@ -37,15 +37,15 @@ const text = {
   en: {
     title: 'Real-time voice',
     description:
-      'Optional on-device models add partial captions, voice activity detection, and Chinese/English speech playback.',
+      'Optional on-device models add partial captions, voice activity detection, and local speech playback.',
     streaming: 'Streaming captions',
     streamingHint: 'Small English-only Zipformer produces revisable partial captions while you speak, using the CPU.',
     vad: 'Voice activity detection',
     vadHint: 'Silero detects speech boundaries for continuous conversation.',
     tts: 'Text-to-speech',
-    ttsHint: 'Kokoro speaks assistant responses locally in Chinese and English.',
+    ttsHint: 'Kokoro currently speaks assistant responses locally. Piper and KittenTTS are planned alternatives.',
     voice: 'Voice library',
-    voiceHint: '53 bundled identities. Chinese is recommended; other voices may add an accent when reading Chinese.',
+    voiceHint: '53 bundled voices are available. Voice quality and accent vary by speaker.',
     recommended: 'Recommended Chinese',
     american: 'American',
     british: 'British',
@@ -246,6 +246,28 @@ export function VoiceRuntimeSettings() {
                   <p className="mt-1 text-xs leading-5 text-text-secondary">
                     {hint}
                   </p>
+
+                  {kind === 'tts' && (
+                    <div className="mt-3 max-w-sm">
+                      <label htmlFor="tts-engine" className="mb-1 block text-xs font-semibold text-text">
+                        Speech engine
+                      </label>
+                      <select
+                        id="tts-engine"
+                        value="kokoro"
+                        onChange={() => undefined}
+                        aria-describedby="tts-engine-status"
+                        className="w-full rounded-lg border border-border bg-surface-secondary/60 px-3 py-2 text-xs text-text outline-none focus:border-accent"
+                      >
+                        <option value="kokoro">Kokoro — current engine</option>
+                        <option value="piper" disabled>Piper TTS — planned</option>
+                        <option value="kitten" disabled>KittenTTS Nano INT8 — planned</option>
+                      </select>
+                      <p id="tts-engine-status" className="mt-1 text-[11px] leading-4 text-text-tertiary">
+                        Piper and KittenTTS are shown as future options only; they are not integrated yet. Kokoro remains the active engine.
+                      </p>
+                    </div>
+                  )}
 
                   {asset?.installed && kind === 'tts' && (
                     <fieldset className="mt-4 rounded-lg border border-border/80 bg-surface p-3">
