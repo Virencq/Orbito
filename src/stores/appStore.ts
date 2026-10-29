@@ -183,7 +183,7 @@ export const useAppStore = create<AppState>()(
       fileTreeVersion: 0,
       kokoroSpeakerId: DEFAULT_KOKORO_SPEAKER_ID,
       handsfreeEnabled: false,
-      githubMirror: 'https://mirror.ghproxy.com/https://github.com/',
+      githubMirror: '',
       npmRegistryMirror: 'https://registry.npmmirror.com',
       companion: null,
 
