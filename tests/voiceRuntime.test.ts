@@ -44,7 +44,7 @@ describe('real-time voice command boundary', () => {
       ],
       ['cancel_voice_asset_download'],
       ['delete_voice_asset', { kind: 'vad' }],
-      ['speak_text', { text: 'hello', speed: 1.1 }],
+      ['speak_text', { text: 'hello', speed: 1.1, speakerId: 47 }],
       ['stop_speaking'],
       ['start_realtime_voice'],
       ['stop_realtime_voice'],
