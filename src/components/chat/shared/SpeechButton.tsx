@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useAppStore } from '../../../stores/appStore'
 import { LoaderCircle, Square, Volume2 } from 'lucide-react'
 import { openVoiceInputSettings } from '../../../utils/voiceInput'
 import { toSpeakableText } from '../../../utils/voiceConversation'
@@ -17,6 +18,7 @@ interface SpeechButtonProps {
 }
 
 export function SpeechButton({ text, label }: SpeechButtonProps) {
+  const kokoroSpeakerId = useAppStore((state) => state.kokoroSpeakerId)
   const [installed, setInstalled] = useState(false)
   const [requestId, setRequestId] = useState<number | null>(null)
   const [event, setEvent] = useState<SpeechPlaybackEvent | null>(null)
@@ -68,13 +70,16 @@ export function SpeechButton({ text, label }: SpeechButtonProps) {
       return
     }
     if (active) {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
       await stopSpeaking()
       setRequestId(null)
       return
     }
+    // Ensure the OS/Web Speech fallback cannot overlap local Kokoro playback.
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
     const speakableText = toSpeakableText(text)
     if (!speakableText) return
-    const nextRequest = await speakText(speakableText, 1)
+    const nextRequest = await speakText(speakableText, 1, kokoroSpeakerId)
     setRequestId(nextRequest)
   }
 
