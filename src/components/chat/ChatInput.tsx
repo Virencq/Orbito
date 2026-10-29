@@ -5,6 +5,7 @@ import { TextField, TextArea } from "@heroui/react"
 import { Button, Card } from '../ui'
 import { useChatAttachments } from './useChatAttachments'
 import { useSkillStore } from '../../stores/skillStore'
+import { useAppStore } from '../../stores/appStore'
 import { JCodeModelControls } from '../settings/JCodeModelControls'
 import {
   cancelDictation,
@@ -61,6 +62,7 @@ export function ChatInput({
   draftValue = null,
 }: ChatInputProps) {
   const { t, i18n } = useTranslation()
+  const handsfreeEnabled = useAppStore((state) => state.handsfreeEnabled)
   const [input, setInput] = useState('')
   const {
     attachments,
@@ -576,6 +578,38 @@ export function ChatInput({
       setRealtimeBusy(false)
     }
   }
+
+  const toggleConversationRef = useRef(toggleConversation)
+  toggleConversationRef.current = toggleConversation
+  const handsfreeStartedRef = useRef(false)
+
+  useEffect(() => {
+    const onHandsfreeToggle = (event: Event) => {
+      const detail = (event as CustomEvent<{ enabled?: boolean }>).detail
+      if (!detail || typeof detail.enabled !== 'boolean') return
+      if (detail.enabled) {
+        void toggleConversationRef.current()
+      } else if (getVoiceConversation().active) {
+        setVoiceConversation(false)
+        realtimeModeRef.current = null
+        setRealtimeMode(null)
+        setRealtimePartial('')
+        setRealtimeLevel(0)
+        void Promise.all([
+          cancelRealtimeVoice().catch(() => undefined),
+          stopSpeaking().catch(() => undefined),
+        ])
+      }
+    }
+    window.addEventListener('orbito:handsfree-toggle', onHandsfreeToggle)
+    return () => window.removeEventListener('orbito:handsfree-toggle', onHandsfreeToggle)
+  }, [])
+
+  useEffect(() => {
+    if (!handsfreeEnabled || handsfreeStartedRef.current || !isTauriRuntime()) return
+    handsfreeStartedRef.current = true
+    void toggleConversationRef.current()
+  }, [handsfreeEnabled])
 
   // Auto-resize logic
   // Keep an empty/reopened composer compact. HeroUI can retain the previous
