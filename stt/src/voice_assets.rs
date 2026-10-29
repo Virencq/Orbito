@@ -16,7 +16,7 @@ use sha2::{Digest, Sha256};
 use crate::download;
 
 const STREAMING_ASR_DIR: &str = "sherpa-onnx-streaming-zipformer-en-20M-2023-02-17";
-const TTS_DIR: &str = "kokoro-multi-lang-v1_0";
+const TTS_DIR: &str = "builtin-rust-neural-tts";
 const VAD_FILE: &str = "silero_vad.onnx";
 
 const STREAMING_ASR_URL: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-streaming-zipformer-en-20M-2023-02-17.tar.bz2";
@@ -84,18 +84,7 @@ impl VoiceAssetKind {
                 "joiner-epoch-99-avg-1.int8.onnx",
                 "tokens.txt",
             ],
-            Self::Tts => &[
-                "model.onnx",
-                "voices.bin",
-                "tokens.txt",
-                "lexicon-us-en.txt",
-                "lexicon-zh.txt",
-                "date-zh.fst",
-                "phone-zh.fst",
-                "number-zh.fst",
-                "espeak-ng-data",
-                "dict",
-            ],
+            Self::Tts => &[],
             Self::Vad => &[VAD_FILE],
         }
     }
@@ -603,10 +592,7 @@ mod tests {
     }
 
     #[test]
-    fn kokoro_requires_the_chinese_text_normalization_rules() {
-        let files = VoiceAssetKind::Tts.required_files();
-        assert!(files.contains(&"date-zh.fst"));
-        assert!(files.contains(&"phone-zh.fst"));
-        assert!(files.contains(&"number-zh.fst"));
+    fn built_in_tts_has_no_separate_model_files() {
+        assert!(VoiceAssetKind::Tts.required_files().is_empty());
     }
 }
