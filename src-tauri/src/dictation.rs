@@ -1,4 +1,4 @@
-use std::{process::Command, sync::Arc};
+use std::{process::Command, sync::{Arc, OnceLock}};
 
 use s_loop_speech::{Dictation, DownloadProgress};
 use serde::Serialize;
@@ -38,33 +38,40 @@ fn status(dictation: &Dictation) -> VoiceInputStatus {
 
 #[cfg(target_os = "windows")]
 fn compatibility() -> (bool, String, Option<String>) {
-    let version = Command::new("cmd")
-        .args(["/C", "ver"])
-        .output()
-        .ok()
-        .filter(|output| output.status.success())
-        .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
-        .unwrap_or_else(|| "Windows (unknown version)".to_owned());
-    let build = version
-        .split(|character: char| !character.is_ascii_digit() && character != '.')
-        .find(|part| part.matches('.').count() >= 2)
-        .and_then(|part| part.split('.').nth(2))
-        .and_then(|part| part.parse::<u32>().ok())
-        .unwrap_or(0);
-    let x64 = std::env::consts::ARCH == "x86_64";
-    let supported = x64 && build >= 19_045;
-    let reason = if !x64 {
-        Some("Voice input currently requires a 64-bit x64 Windows PC.".to_owned())
-    } else if build < 19_045 {
-        Some("Voice input requires Windows 10 22H2 or Windows 11.".to_owned())
-    } else {
-        None
-    };
-    (
-        supported,
-        format!("{version} · {}", std::env::consts::ARCH),
-        reason,
-    )
+    // The Windows version probe launches cmd.exe, which can take noticeable time.
+    // Cache its result so opening Voice Input repeatedly does not spawn a shell each time.
+    static COMPATIBILITY: OnceLock<(bool, String, Option<String>)> = OnceLock::new();
+    COMPATIBILITY
+        .get_or_init(|| {
+            let version = Command::new("cmd")
+                .args(["/C", "ver"])
+                .output()
+                .ok()
+                .filter(|output| output.status.success())
+                .map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+                .unwrap_or_else(|| "Windows (unknown version)".to_owned());
+            let build = version
+                .split(|character: char| !character.is_ascii_digit() && character != '.')
+                .find(|part| part.matches('.').count() >= 2)
+                .and_then(|part| part.split('.').nth(2))
+                .and_then(|part| part.parse::<u32>().ok())
+                .unwrap_or(0);
+            let x64 = std::env::consts::ARCH == "x86_64";
+            let supported = x64 && build >= 19_045;
+            let reason = if !x64 {
+                Some("Voice input currently requires a 64-bit x64 Windows PC.".to_owned())
+            } else if build < 19_045 {
+                Some("Voice input requires Windows 10 22H2 or Windows 11.".to_owned())
+            } else {
+                None
+            };
+            (
+                supported,
+                format!("{version} · {}", std::env::consts::ARCH),
+                reason,
+            )
+        })
+        .clone()
 }
 
 #[cfg(target_os = "macos")]
