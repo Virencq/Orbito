@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { invoke } from '@tauri-apps/api/core'
 import {
   cancelRealtimeVoice,
@@ -20,6 +20,10 @@ describe('real-time voice command boundary', () => {
   beforeEach(() => {
     vi.mocked(invoke).mockReset()
     vi.mocked(invoke).mockResolvedValue(undefined)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it('maps model, speech, and streaming operations to Tauri', async () => {
@@ -44,7 +48,7 @@ describe('real-time voice command boundary', () => {
       ],
       ['cancel_voice_asset_download'],
       ['delete_voice_asset', { kind: 'vad' }],
-      ['speak_text', { text: 'hello', speed: 1.1, speakerId: 47 }],
+      ['speak_text', { text: 'hello', speed: 1.1, speakerId: 26 }],
       ['stop_speaking'],
       ['start_realtime_voice'],
       ['stop_realtime_voice'],
@@ -54,17 +58,14 @@ describe('real-time voice command boundary', () => {
 
   it('cancels browser speech before Kokoro starts and when Stop is requested', async () => {
     const cancel = vi.fn()
-    Object.defineProperty(window, 'speechSynthesis', {
-      configurable: true,
-      value: { cancel },
-    })
+    vi.stubGlobal('window', { speechSynthesis: { cancel } })
 
     await speakText('hello')
     expect(cancel).toHaveBeenCalledTimes(1)
     expect(vi.mocked(invoke)).toHaveBeenCalledWith('speak_text', {
       text: 'hello',
       speed: 1,
-      speakerId: 47,
+      speakerId: 26,
     })
 
     await stopSpeaking()
