@@ -340,9 +340,15 @@ export function ChatInput({
         }
 
         if (realtimeModeRef.current === 'dictation') {
-          setInput((draft) =>
-            draft.trim() ? `${draft.trimEnd()} ${transcript}` : transcript,
-          )
+          // Submit each completed live-caption utterance without requiring Send.
+          // If JCode is already responding, keep the transcript in the composer.
+          if (event.turnComplete && !isStreamingRef.current) {
+            onSubmitRef.current(transcript)
+          } else {
+            setInput((draft) =>
+              draft.trim() ? `${draft.trimEnd()} ${transcript}` : transcript,
+            )
+          }
         }
         return
       }
