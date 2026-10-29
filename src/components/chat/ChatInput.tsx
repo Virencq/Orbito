@@ -914,6 +914,31 @@ export function ChatInput({
                     </div>
                     <div className="flex items-center gap-2">
                       <JCodeModelControls compact />
+                      {isTauriRuntime() && (
+                        <>
+                          <Button type="button" variant={dictation?.recording ? 'danger' : 'secondary'} size="icon"
+                            aria-label={dictation?.recording ? 'Stop dictation' : 'Start dictation'}
+                            title={dictation?.recording ? 'Stop and transcribe' : 'Local voice input'}
+                            isDisabled={dictationBusy || disabled || isStreaming || !!realtimeMode || realtimeBusy || dictationRuntimeAvailable === false}
+                            onClick={() => void toggleDictation()} className="w-8 h-8 rounded-lg">
+                            {dictationBusy ? <LoaderCircle size={16} className="animate-spin" /> : dictation?.recording ? <Square size={14} fill="currentColor" /> : <Mic size={16} />}
+                          </Button>
+                          <Button type="button" variant={realtimeMode === 'dictation' ? 'danger' : 'secondary'} size="icon"
+                            aria-label={realtimeMode === 'dictation' ? 'Stop live captions' : 'Start live captions'}
+                            title="Live captions; completed phrases submit automatically"
+                            isDisabled={disabled || isStreaming || dictationBusy || !!dictation?.recording || realtimeBusy || conversation.active || voiceRuntimeAvailable === false}
+                            onClick={() => void toggleRealtimeDictation()} className="w-8 h-8 rounded-lg">
+                            {realtimeBusy && realtimeMode !== 'conversation' ? <LoaderCircle size={16} className="animate-spin" /> : realtimeMode === 'dictation' ? <Square size={14} fill="currentColor" /> : <AudioLines size={16} />}
+                          </Button>
+                          <Button type="button" variant={conversation.active ? 'danger' : 'secondary'} size="icon"
+                            aria-label={conversation.active ? 'Stop voice conversation' : 'Start voice conversation'}
+                            title="Hands-free voice conversation"
+                            isDisabled={disabled || !!dictation?.recording || dictationBusy || (isStreaming && !conversation.active) || realtimeMode === 'dictation' || voiceRuntimeAvailable === false}
+                            onClick={() => void toggleConversation()} className="w-8 h-8 rounded-lg">
+                            {realtimeBusy && realtimeMode === 'conversation' ? <LoaderCircle size={16} className="animate-spin" /> : conversation.active && conversation.state !== 'speaking' ? <Square size={14} fill="currentColor" /> : <PhoneCall size={16} />}
+                          </Button>
+                        </>
+                      )}
                       <Button
                         type="submit"
                         variant="secondary"
