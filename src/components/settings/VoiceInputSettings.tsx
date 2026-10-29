@@ -72,11 +72,19 @@ export function VoiceInputSettings() {
     // on some installed builds, so it must not block the entire page.
     setStatusCheckComplete(true)
     void refresh().catch((reason) => setError(String(reason)))
+    let disposed = false
     let unlisten: (() => void) | undefined
     void listenDictationDownloadProgress(setProgress).then((dispose) => {
-      unlisten = dispose
+      // The async listener registration may finish after this component unmounts.
+      if (disposed) dispose()
+      else unlisten = dispose
+    }).catch((reason) => {
+      if (!disposed) setError(String(reason))
     })
-    return () => unlisten?.()
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
   }, [])
 
   useEffect(() => {
@@ -84,10 +92,26 @@ export function VoiceInputSettings() {
       setLevel(0)
       return
     }
-    const timer = window.setInterval(() => {
-      void getDictationLevel().then(setLevel).catch(() => setLevel(0))
-    }, 100)
-    return () => window.clearInterval(timer)
+
+    let disposed = false
+    let timer: number | undefined
+    // Schedule the next IPC poll only after the current one settles. A fixed
+    // interval can stack native calls when a busy device takes over 100 ms.
+    const poll = async () => {
+      try {
+        const nextLevel = await getDictationLevel()
+        if (!disposed) setLevel(nextLevel)
+      } catch {
+        if (!disposed) setLevel(0)
+      } finally {
+        if (!disposed) timer = window.setTimeout(() => { void poll() }, 100)
+      }
+    }
+    void poll()
+    return () => {
+      disposed = true
+      if (timer !== undefined) window.clearTimeout(timer)
+    }
   }, [status?.recording])
 
   useEffect(() => {
