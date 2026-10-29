@@ -563,7 +563,7 @@ export function ChatInput({
       !voiceAsset(current, 'vad')?.installed ||
       !voiceAsset(current, 'tts')?.installed
     ) {
-      openVoiceInputSettings()
+      setDictationError('Voice conversation needs Streaming captions, Voice activity detection, and Text-to-speech. Install missing models in Settings → Voice Input.')
       return
     }
 
