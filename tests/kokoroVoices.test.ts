@@ -46,8 +46,8 @@ describe('Kokoro voice catalog', () => {
     ])
   })
 
-  it('uses a neutral Chinese voice by default', () => {
-    expect(DEFAULT_KOKORO_SPEAKER_ID).toBe(47)
+  it('uses the default British male voice', () => {
+    expect(DEFAULT_KOKORO_SPEAKER_ID).toBe(26)
   })
 
   it('accepts the complete range and falls back safely outside it', () => {
