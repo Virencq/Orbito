@@ -53,7 +53,7 @@ impl VoiceAssetKind {
     fn display_name(self) -> &'static str {
         match self {
             Self::StreamingAsr => "Streaming Zipformer English 20M (int8)",
-            Self::Tts => "Kokoro Chinese + English",
+            Self::Tts => "Built-in Rust neural TTS (Kokoro-82M INT8)",
             Self::Vad => "Silero voice activity detector",
         }
     }
@@ -156,6 +156,10 @@ impl VoiceAssets {
     }
 
     pub fn is_installed(&self, kind: VoiceAssetKind) -> bool {
+        // TTS weights and voice assets are embedded in the pure-Rust engine.
+        if kind == VoiceAssetKind::Tts {
+            return true;
+        }
         let path = self.asset_path(kind);
         kind.required_files().iter().all(|entry| {
             let candidate = if kind == VoiceAssetKind::Vad {
@@ -197,7 +201,8 @@ impl VoiceAssets {
         github_mirror: Option<&str>,
         mut on_progress: impl FnMut(VoiceAssetProgress),
     ) -> Result<(), String> {
-        if self.is_installed(kind) {
+        // The TTS engine is built into Orbito; there is no separate model download.
+        if kind == VoiceAssetKind::Tts || self.is_installed(kind) {
             return Ok(());
         }
         {
@@ -336,6 +341,9 @@ impl VoiceAssets {
     }
 
     pub fn delete(&self, kind: VoiceAssetKind) -> Result<(), String> {
+        if kind == VoiceAssetKind::Tts {
+            return Err("The built-in TTS engine cannot be deleted.".to_owned());
+        }
         self.cancel_download();
         remove_path_if_exists(&self.asset_path(kind)).map_err(|error| {
             format!(
