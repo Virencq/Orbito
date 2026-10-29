@@ -39,7 +39,7 @@ const text = {
     description:
       'Optional on-device models add partial captions, voice activity detection, and Chinese/English speech playback.',
     streaming: 'Streaming captions',
-    streamingHint: 'Zipformer produces revisable partial text while you speak.',
+    streamingHint: 'Small English-only Zipformer produces revisable partial captions while you speak, using the CPU.',
     vad: 'Voice activity detection',
     vadHint: 'Silero detects speech boundaries for continuous conversation.',
     tts: 'Text-to-speech',
