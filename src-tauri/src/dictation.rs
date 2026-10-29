@@ -124,8 +124,16 @@ pub fn initialize(app: &tauri::App) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn get_dictation_status(state: tauri::State<Arc<Dictation>>) -> VoiceInputStatus {
-    status(&state)
+pub async fn get_dictation_status(
+    state: tauri::State<'_, Arc<Dictation>>,
+) -> Result<VoiceInputStatus, String> {
+    // Compatibility detection may launch a Windows process on its first call.
+    // Keep that work off Tauri's command/UI thread so opening Voice Input cannot
+    // freeze the window while the OS probe completes.
+    let dictation = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || status(&dictation))
+        .await
+        .map_err(|error| format!("Could not read dictation status: {error}"))
 }
 
 #[tauri::command]
