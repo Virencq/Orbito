@@ -12,7 +12,6 @@ import {
   getDictationLevel,
   getDictationStatus,
   isTauriRuntime,
-  openVoiceInputSettings,
   startDictation,
   stopDictation,
   type VoiceInputStatus,
@@ -479,7 +478,7 @@ export function ChatInput({
       }
       const current = dictation || await getDictationStatus()
       if (!current.supported || !current.modelVerified || !current.testPassed) {
-        openVoiceInputSettings()
+        setDictationError('Voice feature is not ready. Open Settings → Voice Input to install or verify the required components.')
         return
       }
       setDictationBusy(true)
