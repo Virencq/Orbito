@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle, Download, Mic, Square, Trash2, X } from 'lucide-react'
 import { VoiceRuntimeSettings } from './VoiceRuntimeSettings'
+import { useAppStore } from '../../stores/appStore'
 import {
   cancelDictation,
   cancelDictationModelDownload,
@@ -48,6 +49,8 @@ const formatBytes = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)} MiB`
 
 export function VoiceInputSettings() {
   const text = copy.en
+  const handsfreeEnabled = useAppStore((state) => state.handsfreeEnabled)
+  const setHandsfreeEnabled = useAppStore((state) => state.setHandsfreeEnabled)
   const [status, setStatus] = useState<VoiceInputStatus | null>(null)
   const [statusCheckComplete, setStatusCheckComplete] = useState(false)
   const [progress, setProgress] = useState<DictationDownloadProgress | null>(null)
@@ -159,6 +162,15 @@ export function VoiceInputSettings() {
 
   return (
     <div className="max-w-3xl mx-auto px-8 py-7 space-y-4">
+      <div className="settings-section flex items-center gap-4">
+        <div className="flex-1">
+          <h4 className="text-[15px] font-semibold text-text">Hands-free mode</h4>
+          <p className="mt-1 text-sm text-text-secondary">Continue voice conversations without repeatedly clicking the microphone.</p>
+        </div>
+        <button type="button" role="switch" aria-checked={handsfreeEnabled} onClick={() => { const enabled = !handsfreeEnabled; setHandsfreeEnabled(enabled); window.dispatchEvent(new CustomEvent('orbito:handsfree-toggle', { detail: { enabled } })) }} className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${handsfreeEnabled ? 'bg-accent' : 'bg-surface-tertiary'}`}>
+          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${handsfreeEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+        </button>
+      </div>
       {!status && (
         <div className="rounded-xl border border-border bg-surface p-5">
           <h4 className="text-[15px] font-semibold text-text">Local dictation status unavailable</h4>
