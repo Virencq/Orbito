@@ -10,6 +10,7 @@ import {
   X,
 } from 'lucide-react'
 import { useAppStore } from '../../stores/appStore'
+import { KOKORO_VOICES } from '../../config/kokoroVoices'
 import {
   cancelVoiceAssetDownload,
   deleteVoiceAsset,
@@ -59,6 +60,11 @@ const formatBytes = (bytes: number) => {
 export function VoiceRuntimeSettings() {
   const copy = text.en
   const githubMirror = useAppStore((state) => state.githubMirror)
+  const speakerId = useAppStore((state) => state.kokoroSpeakerId)
+  const setKokoroSpeakerId = useAppStore((state) => state.setKokoroSpeakerId)
+  const englishMaleVoices = KOKORO_VOICES.filter(
+    (voice) => voice.gender === 'male' && (voice.region === 'british' || voice.region === 'american'),
+  )
   const [status, setStatus] = useState<VoiceRuntimeStatus | null>(null)
   const [progress, setProgress] = useState<VoiceAssetProgress | null>(null)
   const [busy, setBusy] = useState<VoiceAssetKind | null>(null)
@@ -131,7 +137,7 @@ export function VoiceRuntimeSettings() {
         await stopSpeaking()
       } else {
         const sample = 'Hello, this is Orbito. The local neural speech engine is ready for playback.'
-        await speakText(sample, 1)
+        await speakText(sample, 1, speakerId)
       }
     } catch (reason) {
       setError(String(reason))
@@ -193,6 +199,28 @@ export function VoiceRuntimeSettings() {
                   <p className="mt-1 text-xs leading-5 text-text-secondary">
                     {hint}
                   </p>
+
+                  {kind === 'tts' && asset?.installed && (
+                    <div className="mt-3 max-w-sm">
+                      <label htmlFor="kokoro-voice" className="mb-1.5 block text-xs font-medium text-text-secondary">
+                        Voice (English male)
+                      </label>
+                      <select
+                        id="kokoro-voice"
+                        value={speakerId}
+                        onChange={(event) => setKokoroSpeakerId(Number(event.target.value) as typeof speakerId)}
+                        className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-accent"
+                      >
+                        {englishMaleVoices.map((voice) => (
+                          <option key={voice.id} value={voice.id}>
+                            {voice.name} — {voice.region === 'british' ? 'British English' : 'American English'}
+                            {voice.id === 26 ? ' · Recommended' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="mt-1 text-xs text-text-tertiary">Choose a voice, then press Test voice. Your choice is saved.</p>
+                    </div>
+                  )}
 
                   {downloading && currentProgress && (
                     <div className="mt-3">
