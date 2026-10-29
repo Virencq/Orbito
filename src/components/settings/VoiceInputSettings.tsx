@@ -65,12 +65,36 @@ export function VoiceInputSettings() {
 
   useEffect(() => {
     if (!isTauriRuntime()) return
-    void refresh().catch((reason) => setError(String(reason))).finally(() => setStatusCheckComplete(true))
+    let active = true
     let unlisten: (() => void) | undefined
+
+    // A native invoke can remain pending if the installed runtime is mismatched
+    // or a command fails to initialize. Never leave this page on an infinite spinner.
+    const timeout = window.setTimeout(() => {
+      if (!active) return
+      setError('Voice support check timed out. Close and reopen Settings; if it persists, this build may have a voice-runtime mismatch.')
+      setStatusCheckComplete(true)
+    }, 8000)
+
+    void refresh()
+      .catch((reason) => {
+        if (active) setError(String(reason))
+      })
+      .finally(() => {
+        window.clearTimeout(timeout)
+        if (active) setStatusCheckComplete(true)
+      })
+
     void listenDictationDownloadProgress(setProgress).then((dispose) => {
-      unlisten = dispose
-    })
-    return () => unlisten?.()
+      if (active) unlisten = dispose
+      else dispose()
+    }).catch(() => undefined)
+
+    return () => {
+      active = false
+      window.clearTimeout(timeout)
+      unlisten?.()
+    }
   }, [])
 
   useEffect(() => {
