@@ -136,6 +136,7 @@ export function VoiceRuntimeSettings() {
       if (playback?.state === 'loading' || playback?.state === 'speaking') {
         await stopSpeaking()
       } else {
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel()
         const sample = 'Hello, this is Orbito. The local neural speech engine is ready for playback.'
         await speakText(sample, 1, speakerId)
       }
