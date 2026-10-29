@@ -705,7 +705,7 @@ export const useAppStore = create<AppState>()(
         kokoroSpeakerId: state.kokoroSpeakerId,
         handsfreeEnabled: state.handsfreeEnabled,
       }),
-      version: 6,
+      version: 7,
       migrate: (persistedState, version) => {
         let nextState = persistedState as any
         if (version < 4) {
@@ -727,6 +727,14 @@ export const useAppStore = create<AppState>()(
           nextState = {
             ...nextState,
             kokoroSpeakerId: normalizeKokoroSpeakerId(nextState.kokoroSpeakerId),
+          }
+        }
+        if (version < 7) {
+          // Older builds defaulted to a Chinese voice; move those users to British male George.
+          const previousSpeaker = normalizeKokoroSpeakerId(nextState.kokoroSpeakerId)
+          nextState = {
+            ...nextState,
+            kokoroSpeakerId: previousSpeaker >= 45 ? DEFAULT_KOKORO_SPEAKER_ID : previousSpeaker,
           }
         }
         return nextState
