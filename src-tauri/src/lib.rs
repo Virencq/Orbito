@@ -13,13 +13,74 @@ mod voice;
 
 use crate::jcode_acp::JCodeState;
 use crate::mcp_manager::MCPManager;
-use std::sync::{Arc, Mutex};
+use std::{fs, path::PathBuf, sync::{Arc, Mutex}};
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::Manager;
 
 struct AppLifecycleState { exiting: AtomicBool }
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SavedWindowState {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    maximized: bool,
+}
+
+fn window_state_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let dir = app.path().app_config_dir().map_err(|error| error.to_string())?;
+    fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    Ok(dir.join("window-state.json"))
+}
+
+fn save_window_state(window: &tauri::WebviewWindow) {
+    let result = (|| -> Result<(), String> {
+        let app = window.app_handle();
+        let path = window_state_path(&app)?;
+        let position = window.outer_position().map_err(|error| error.to_string())?;
+        let size = window.inner_size().map_err(|error| error.to_string())?;
+        let state = SavedWindowState {
+            x: position.x,
+            y: position.y,
+            width: size.width.max(800),
+            height: size.height.max(600),
+            maximized: window.is_maximized().map_err(|error| error.to_string())?,
+        };
+        let json = serde_json::to_vec_pretty(&state).map_err(|error| error.to_string())?;
+        fs::write(path, json).map_err(|error| error.to_string())
+    })();
+    if let Err(error) = result {
+        eprintln!("[window-state] Could not save window state: {error}");
+    }
+}
+
+fn restore_window_state(app: &tauri::AppHandle) {
+    let result = (|| -> Result<(), String> {
+        let path = window_state_path(app)?;
+        let Ok(bytes) = fs::read(path) else { return Ok(()); };
+        let state: SavedWindowState = serde_json::from_slice(&bytes)
+            .map_err(|error| format!("Invalid saved window state: {error}"))?;
+        let Some(window) = app.get_webview_window("main") else { return Ok(()); };
+
+        let width = state.width.clamp(800, 7680);
+        let height = state.height.clamp(600, 4320);
+        window.set_size(tauri::PhysicalSize::new(width, height))
+            .map_err(|error| error.to_string())?;
+        window.set_position(tauri::PhysicalPosition::new(state.x, state.y))
+            .map_err(|error| error.to_string())?;
+        if state.maximized {
+            window.maximize().map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    })();
+    if let Err(error) = result {
+        eprintln!("[window-state] Could not restore window state: {error}");
+    }
+}
 
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
@@ -30,13 +91,22 @@ fn show_main_window(app: &tauri::AppHandle) {
 }
 
 fn hide_main_window(app: &tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window("main") { let _ = window.hide(); }
+    if let Some(window) = app.get_webview_window("main") {
+        save_window_state(&window);
+        let _ = window.hide();
+    }
 }
 
 fn toggle_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        if window.is_visible().unwrap_or(true) { let _ = window.hide(); }
-        else { let _ = window.show(); let _ = window.unminimize(); let _ = window.set_focus(); }
+        if window.is_visible().unwrap_or(true) {
+            save_window_state(&window);
+            let _ = window.hide();
+        } else {
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
+        }
     }
 }
 
@@ -61,6 +131,9 @@ fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             "tray_show" => show_main_window(app),
             "tray_hide" => hide_main_window(app),
             "tray_quit" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    save_window_state(&window);
+                }
                 if let Some(state) = app.try_state::<JCodeState>() {
                     jcode_acp::shutdown_all(&state);
                 }
@@ -148,6 +221,7 @@ pub fn run() {
             voice::cancel_realtime_voice,
         ])
         .setup(|app| {
+            restore_window_state(&app.handle());
             setup_tray(app).map_err(|e| std::io::Error::other(e.to_string()))?;
             dictation::initialize(app).map_err(std::io::Error::other)?;
             voice::initialize(app).map_err(std::io::Error::other)?;
@@ -158,6 +232,7 @@ pub fn run() {
                 if let Some(state) = window.app_handle().try_state::<AppLifecycleState>() {
                     if !state.exiting.load(Ordering::Relaxed) {
                         api.prevent_close();
+                        save_window_state(window);
                         let _ = window.hide();
                     }
                 }
