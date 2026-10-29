@@ -4,7 +4,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { invoke } from '@tauri-apps/api/core'
 import { VoiceRuntimeSettings } from '../src/components/settings/VoiceRuntimeSettings'
-import { useAppStore } from '../src/stores/appStore'
 
 const readyStatus = {
   assets: [
@@ -24,19 +23,18 @@ const readyStatus = {
     },
     {
       kind: 'tts',
-      name: 'Kokoro',
+      name: 'Built-in Rust neural TTS (Kokoro-82M INT8)',
       installed: true,
       downloadInProgress: false,
-      diskBytes: 1,
+      diskBytes: 0,
     },
   ],
   speaking: false,
   listening: false,
 }
 
-describe('VoiceRuntimeSettings Kokoro voice selection', () => {
+describe('VoiceRuntimeSettings built-in TTS', () => {
   beforeEach(() => {
-    useAppStore.getState().setKokoroSpeakerId(47)
     vi.mocked(invoke).mockReset()
     vi.mocked(invoke).mockImplementation(async (command) => {
       if (command === 'get_voice_runtime_status') return readyStatus
@@ -45,40 +43,20 @@ describe('VoiceRuntimeSettings Kokoro voice selection', () => {
     })
   })
 
-  it('selects a Chinese speaker and uses it for the preview', async () => {
+  it('exposes a single built-in neural voice and can test playback', async () => {
     render(<VoiceRuntimeSettings />)
 
-    const xiaoyi = await screen.findByRole('radio', { name: /Xiaoyi/ })
-    fireEvent.click(xiaoyi)
-    expect(useAppStore.getState().kokoroSpeakerId).toBe(48)
+    expect(await screen.findByText(/Built-in offline neural speech synthesis/i)).toBeTruthy()
+    expect(screen.queryByLabelText(/Speech engine/i)).toBeNull()
+    expect(screen.queryByRole('radiogroup', { name: /Voice library/i })).toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: /Xiaoyi/ }))
-
+    fireEvent.click(screen.getByRole('button', { name: /Test voice/i }))
     await waitFor(() => {
       expect(vi.mocked(invoke)).toHaveBeenCalledWith(
         'speak_text',
         expect.objectContaining({
-          speakerId: 48,
-          text: expect.stringContaining('123'),
+          text: expect.stringContaining('Orbito'),
         }),
-      )
-    })
-  })
-
-  it('opens the complete catalog and selects an American voice', async () => {
-    render(<VoiceRuntimeSettings />)
-
-    fireEvent.click(await screen.findByRole('button', { name: /All 53/ }))
-    expect(await screen.findAllByRole('radio')).toHaveLength(53)
-
-    fireEvent.click(screen.getByRole('radio', { name: /Alloy/ }))
-    expect(useAppStore.getState().kokoroSpeakerId).toBe(0)
-
-    fireEvent.click(screen.getByRole('button', { name: /Alloy/ }))
-    await waitFor(() => {
-      expect(vi.mocked(invoke)).toHaveBeenCalledWith(
-        'speak_text',
-        expect.objectContaining({ speakerId: 0 }),
       )
     })
   })
