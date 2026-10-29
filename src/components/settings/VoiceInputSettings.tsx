@@ -68,7 +68,10 @@ export function VoiceInputSettings() {
 
   useEffect(() => {
     if (!isTauriRuntime()) return
-    void refresh().catch((reason) => setError(String(reason))).finally(() => setStatusCheckComplete(true))
+    // Render the settings immediately. The native status command can be slow
+    // on some installed builds, so it must not block the entire page.
+    setStatusCheckComplete(true)
+    void refresh().catch((reason) => setError(String(reason)))
     let unlisten: (() => void) | undefined
     void listenDictationDownloadProgress(setProgress).then((dispose) => {
       unlisten = dispose
