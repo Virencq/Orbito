@@ -43,12 +43,32 @@ fn save_window_state(window: &tauri::WebviewWindow) {
         let path = window_state_path(&app)?;
         let position = window.outer_position().map_err(|error| error.to_string())?;
         let size = window.inner_size().map_err(|error| error.to_string())?;
+        let maximized = window.is_maximized().map_err(|error| error.to_string())?;
+
+        // When maximized, inner_size() reports the maximized dimensions rather
+        // than the user's normal window size. Preserve the last saved normal
+        // bounds so restoring from maximized mode does not turn those bounds
+        // into an oversized window on the next launch.
+        let previous = if maximized {
+            fs::read(&path)
+                .ok()
+                .and_then(|bytes| serde_json::from_slice::<SavedWindowState>(&bytes).ok())
+        } else {
+            None
+        };
+        let (x, y, width, height) = if let Some(previous) = previous {
+            (previous.x, previous.y, previous.width.max(800), previous.height.max(600))
+        } else if maximized {
+            (position.x, position.y, 1280, 800)
+        } else {
+            (position.x, position.y, size.width.max(800), size.height.max(600))
+        };
         let state = SavedWindowState {
-            x: position.x,
-            y: position.y,
-            width: size.width.max(800),
-            height: size.height.max(600),
-            maximized: window.is_maximized().map_err(|error| error.to_string())?,
+            x,
+            y,
+            width,
+            height,
+            maximized,
         };
         let json = serde_json::to_vec_pretty(&state).map_err(|error| error.to_string())?;
         fs::write(path, json).map_err(|error| error.to_string())
