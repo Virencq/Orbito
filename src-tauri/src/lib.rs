@@ -252,7 +252,9 @@ pub fn run() {
                 if let Some(state) = window.app_handle().try_state::<AppLifecycleState>() {
                     if !state.exiting.load(Ordering::Relaxed) {
                         api.prevent_close();
-                        save_window_state(window);
+                        if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
+                            save_window_state(&webview);
+                        }
                         let _ = window.hide();
                     }
                 }
