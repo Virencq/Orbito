@@ -46,7 +46,7 @@ describe('VoiceRuntimeSettings built-in TTS', () => {
   it('exposes a single built-in neural voice and can test playback', async () => {
     render(<VoiceRuntimeSettings />)
 
-    expect(await screen.findByText(/Built-in offline neural speech synthesis/i)).toBeTruthy()
+    expect(await screen.findByText(/Kokoro neural speech synthesis runs locally/i)).toBeTruthy()
     expect(screen.queryByLabelText(/Speech engine/i)).toBeNull()
     expect(screen.queryByRole('radiogroup', { name: /Voice library/i })).toBeNull()
 
