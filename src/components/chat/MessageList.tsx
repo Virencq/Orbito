@@ -1,5 +1,5 @@
 import { useRef, useMemo, useState, useEffect, useLayoutEffect, useCallback } from 'react'
-import { ArrowDown } from 'lucide-react'
+import { ArrowDown, LoaderCircle } from 'lucide-react'
 import { useAppStore } from '../../stores'
 import { MessageItem } from './MessageItem'
 import type { KiloMessage } from '../../types'
@@ -123,7 +123,9 @@ export function MessageList({ sessionId, onEdit, onDelete }: MessageListProps) {
     return () => observer.disconnect()
   }, [sessionId])
 
-  if (groupedMessages.length === 0) {
+  const isWaitingForFirstEvent = !!streamingMessage?.isStreaming && streamingMessage.parts.length === 0
+
+  if (groupedMessages.length === 0 && !isWaitingForFirstEvent) {
     return null
   }
 
@@ -154,6 +156,12 @@ export function MessageList({ sessionId, onEdit, onDelete }: MessageListProps) {
               />
             )
           })}
+          {isWaitingForFirstEvent && (
+            <div className="flex items-center gap-2 px-3 py-4 text-[13px] text-text-secondary" role="status" aria-live="polite">
+              <LoaderCircle size={15} className="shrink-0 animate-spin text-accent" aria-hidden="true" />
+              <span className="animate-pulse">Thinking…</span>
+            </div>
+          )}
           <div aria-hidden="true" className="h-2" />
         </div>
       </div>
