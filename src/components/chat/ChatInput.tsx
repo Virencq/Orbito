@@ -953,18 +953,7 @@ export function ChatInput({
                   </>
                 ) : (
                   <>
-                    {isStreaming ? (
-                      <Button
-                        type="button"
-                        variant="danger"
-                        size="icon"
-                        aria-label="Stop generating"
-                        onClick={onAbort}
-                        className="ml-auto w-9 h-9 rounded-lg animate-fade-in"
-                      >
-                        <Square size={16} fill="currentColor" />
-                      </Button>
-                    ) : (
+
                       <div className="flex w-full items-center gap-2">
                         <div ref={addMenuRef} className="relative z-[80]">
                           <button
@@ -1044,6 +1033,18 @@ export function ChatInput({
                             </Button>
                           </>
                         )}
+                        {isStreaming ? (
+                          <Button
+                            type="button"
+                            variant="danger"
+                            size="icon"
+                            aria-label="Stop generating"
+                            onClick={onAbort}
+                            className="w-9 h-9 rounded-lg animate-fade-in"
+                          >
+                            <Square size={16} fill="currentColor" />
+                          </Button>
+                        ) : (
                         <Button
                           type="submit"
                           variant="primary"
@@ -1054,9 +1055,9 @@ export function ChatInput({
                         >
                           <Send size={18} strokeWidth={3} className={input.trim() || attachments.length > 0 ? 'translate-x-0.5 -translate-y-0.5' : ''}/>
                         </Button>
+                        )}
                         </div>
                       </div>
-                    )}
                   </>
                 )}
               </div>            </div>
