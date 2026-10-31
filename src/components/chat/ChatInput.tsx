@@ -804,7 +804,7 @@ export function ChatInput({
               <TextField
                 value={input}
                 onChange={setInput}
-                isDisabled={disabled || isStreaming || !!dictation?.recording || dictationBusy || !!realtimeMode || realtimeBusy}
+                isDisabled={disabled || !!dictation?.recording || dictationBusy || !!realtimeMode || realtimeBusy}
                 className={`w-full selection:bg-accent/20 ${isHero ? "cowork-hero-input" : ""}`}
               >
                 <TextArea
