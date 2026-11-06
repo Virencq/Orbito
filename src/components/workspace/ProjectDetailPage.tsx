@@ -24,7 +24,7 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
   const slashMatch = prompt.match(/(?:^|\s)\/([\w-]*)$/)
   const slashQuery = slashMatch?.[1]?.toLowerCase() ?? ''
   const slashSuggestions = slashMatch
-    ? enabledSkills.filter((skill) => skill.name.toLowerCase().includes(slashQuery)).slice(0, 8)
+    ? enabledSkills.filter((skill) => skill.name.toLowerCase().includes(slashQuery))
     : []
   const showSlashSuggestions = !!slashMatch && slashSuggestions.length > 0
   const activeProject = useWorkspaceStore((s) => s.projects.find((item) => item.id === project.id) || project)
@@ -142,7 +142,7 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
             <div>
               <form onSubmit={submit} className="relative overflow-visible rounded-[20px] border border-[#454540] bg-[#20201e] shadow-[0_1px_0_rgba(255,255,255,.025)] focus-within:border-[#696963]">
                 {showSlashSuggestions && (
-                  <div role="listbox" aria-label="Skill suggestions" className="absolute bottom-[calc(100%+8px)] left-0 z-[90] flex max-h-[min(320px,45vh)] w-full flex-col overflow-y-auto overscroll-contain rounded-xl border border-[#454540] bg-[#20201e] shadow-xl">
+                  <div role="listbox" aria-label="Skill suggestions" className="absolute bottom-[calc(100%+8px)] left-0 z-[90] flex max-h-[min(560px,65vh)] w-full flex-col overflow-y-auto overscroll-contain rounded-xl border border-[#454540] bg-[#20201e] shadow-xl">
                     <div className="sticky top-0 z-10 shrink-0 border-b border-[#454540] bg-[#20201e] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#89877f]">Skills · ↑↓ to navigate · Enter to select</div>
                     {slashSuggestions.map((skill, index) => (
                       <button
