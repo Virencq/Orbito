@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import type { CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Send, Square, X, File, Folder, Paperclip, FolderPlus, Mic, LoaderCircle, AudioLines, PhoneCall } from 'lucide-react'
 import { TextField, TextArea } from "@heroui/react"
@@ -213,7 +214,7 @@ export function ChatInput({
   }, [])
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const [skillPickerStyle, setSkillPickerStyle] = useState<React.CSSProperties>({})
+  const [skillPickerStyle, setSkillPickerStyle] = useState<CSSProperties>({})
 
   useEffect(() => {
     if (draftValue !== null && draftValue !== undefined) {
