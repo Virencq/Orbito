@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { ArrowLeft, ChevronDown, Clock3, Folder, LockKeyhole, MessageSquare, Pencil, Pin, Plus, Send } from 'lucide-react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
@@ -18,6 +19,8 @@ interface ProjectDetailPageProps {
 
 export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession, onOpenScheduled }: ProjectDetailPageProps) {
   const [prompt, setPrompt] = useState('')
+  const promptRef = useRef<HTMLTextAreaElement>(null)
+  const [skillPickerStyle, setSkillPickerStyle] = useState<React.CSSProperties>({})
   const [activeSkillSuggestion, setActiveSkillSuggestion] = useState(0)
   const allSkills = useSkillStore((s) => s.skills)
   const enabledSkills = allSkills.filter((skill) => skill.enabled)
@@ -67,6 +70,22 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
   }, [activeProject.id, activeProject.path, activeProject.instructions])
   const tasks = useTaskStore((s) => s.tasks)
   useEffect(() => setActiveSkillSuggestion(0), [slashQuery])
+  useEffect(() => {
+    if (!showSlashSuggestions) return
+    const updatePosition = () => {
+      const rect = promptRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const maxHeight = Math.max(120, Math.min(560, window.innerHeight * 0.65, rect.top - 16))
+      setSkillPickerStyle({ position: 'fixed', left: Math.max(8, rect.left), top: Math.max(8, rect.top - maxHeight - 8), width: Math.min(rect.width, window.innerWidth - 16), maxHeight, zIndex: 9999 })
+    }
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [showSlashSuggestions, slashSuggestions.length])
   const projectSessions = useMemo(() => {
     const normalize = (value: string) => value.split(String.fromCharCode(92)).join('/').toLowerCase()
     const projectPath = activeProject.path ? normalize(activeProject.path) : ''
@@ -141,8 +160,8 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
           <div className="grid grid-cols-[minmax(0,1fr)] gap-8 xl:grid-cols-[minmax(0,650px)]">
             <div>
               <form onSubmit={submit} className="relative overflow-visible rounded-[20px] border border-[#454540] bg-[#20201e] shadow-[0_1px_0_rgba(255,255,255,.025)] focus-within:border-[#696963]">
-                {showSlashSuggestions && (
-                  <div role="listbox" aria-label="Skill suggestions" className="absolute bottom-[calc(100%+8px)] left-0 z-[90] flex max-h-[min(560px,65vh)] w-full flex-col overflow-y-auto overscroll-contain rounded-xl border border-[#454540] bg-[#20201e] shadow-xl">
+                {showSlashSuggestions && createPortal(
+                  <div role="listbox" aria-label="Skill suggestions" style={skillPickerStyle} className="flex flex-col overflow-y-auto overscroll-contain rounded-xl border border-[#454540] bg-[#20201e] shadow-xl">
                     <div className="sticky top-0 z-10 shrink-0 border-b border-[#454540] bg-[#20201e] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#89877f]">Skills · ↑↓ to navigate · Enter to select</div>
                     {slashSuggestions.map((skill, index) => (
                       <button
@@ -158,9 +177,10 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
                         <span className="line-clamp-1 text-[11px] text-[#89877f]">{skill.description}</span>
                       </button>
                     ))}
-                  </div>
+                  </div>,
+                  document.body
                 )}
-                <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={handlePromptKeyDown} rows={2} placeholder="What would you like to work on in this project? Type / for skills" className="block min-h-[76px] w-full resize-none bg-transparent px-5 pt-5 text-[14px] leading-6 text-[#f0eee9] outline-none placeholder:text-[#89877f]" />
+                <textarea ref={promptRef} value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={handlePromptKeyDown} rows={2} placeholder="What would you like to work on in this project? Type / for skills" className="block min-h-[76px] w-full resize-none bg-transparent px-5 pt-5 text-[14px] leading-6 text-[#f0eee9] outline-none placeholder:text-[#89877f]" />
                 <div className="flex h-12 items-center justify-between px-4 pb-1">
                   <div className="flex items-center gap-2 text-[#bdbab2]">
                     <button type="button" onClick={async () => { const selected = await openDialog({ directory: true, multiple: false, title: 'Add project context folder' }); if (typeof selected === 'string') useAppStore.getState().setWorkspaceDir(selected) }} className="rounded-md p-1.5 hover:bg-[#30302c]" title="Add context folder"><Plus size={18}/></button>
