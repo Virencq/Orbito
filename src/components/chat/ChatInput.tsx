@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { Send, Square, X, File, Folder, Paperclip, FolderPlus, Mic, LoaderCircle, AudioLines, PhoneCall } from 'lucide-react'
 import { TextField, TextArea } from "@heroui/react"
@@ -212,6 +213,7 @@ export function ChatInput({
   }, [])
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [skillPickerStyle, setSkillPickerStyle] = useState<React.CSSProperties>({})
 
   useEffect(() => {
     if (draftValue !== null && draftValue !== undefined) {
@@ -664,6 +666,22 @@ export function ChatInput({
   }, [input, variant])
 
   const isHero = variant === 'hero'
+  useLayoutEffect(() => {
+    if (!showSlashSuggestions) return
+    const updatePosition = () => {
+      const rect = textareaRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const maxHeight = Math.max(120, Math.min(560, window.innerHeight * 0.65, rect.top - 16))
+      setSkillPickerStyle({ position: 'fixed', left: Math.max(8, rect.left), top: Math.max(8, rect.top - maxHeight - 8), width: Math.min(Math.max(rect.width, 280), window.innerWidth - 16), maxHeight, zIndex: 9999 })
+    }
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [showSlashSuggestions, slashSuggestions.length])
   const voiceReady = !!dictation?.supported && !!dictation?.modelVerified && !!dictation?.testPassed
   const recordingTime = `${Math.floor(recordingSeconds / 60)}:${String(recordingSeconds % 60).padStart(2, '0')}`
 
@@ -703,8 +721,8 @@ export function ChatInput({
           )}
 
           <div className="flex flex-col">
-            {showSlashSuggestions && (
-              <div role="listbox" aria-label="Skill suggestions" className="absolute bottom-[76px] left-3 z-[90] flex max-h-[min(560px,65vh)] w-[min(360px,calc(100%-24px))] flex-col overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface shadow-xl">
+            {showSlashSuggestions && createPortal(
+              <div role="listbox" aria-label="Skill suggestions" style={skillPickerStyle} className="flex flex-col overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface shadow-xl">
                 <div className="sticky top-0 z-10 shrink-0 border-b border-border bg-surface px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">Skills · ↑↓ to navigate · Enter to select</div>
                 {slashSuggestions.map((skill, index) => (
                   <button
@@ -725,7 +743,8 @@ export function ChatInput({
                     <span className="line-clamp-1 text-[11px] text-text-tertiary">{skill.description}</span>
                   </button>
                 ))}
-              </div>
+              </div>,
+              document.body
             )}
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-2 px-4 pt-3 pb-1 animate-fade-in">
