@@ -85,7 +85,7 @@ export function ChatInput({
   const slashMatch = input.match(/(?:^|\s)\/([\w-]*)$/)
   const slashQuery = slashMatch?.[1]?.toLowerCase() ?? ''
   const slashSuggestions = slashMatch
-    ? skills.filter((skill) => skill.name.toLowerCase().includes(slashQuery)).slice(0, 8)
+    ? skills.filter((skill) => skill.name.toLowerCase().includes(slashQuery))
     : []
   const showSlashSuggestions = !!slashMatch && slashSuggestions.length > 0
   useEffect(() => setActiveSkillSuggestion(0), [slashQuery])
@@ -704,7 +704,7 @@ export function ChatInput({
 
           <div className="flex flex-col">
             {showSlashSuggestions && (
-              <div role="listbox" aria-label="Skill suggestions" className="absolute bottom-[76px] left-3 z-[90] flex max-h-[min(320px,45vh)] w-[min(360px,calc(100%-24px))] flex-col overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface shadow-xl">
+              <div role="listbox" aria-label="Skill suggestions" className="absolute bottom-[76px] left-3 z-[90] flex max-h-[min(560px,65vh)] w-[min(360px,calc(100%-24px))] flex-col overflow-y-auto overscroll-contain rounded-xl border border-border bg-surface shadow-xl">
                 <div className="sticky top-0 z-10 shrink-0 border-b border-border bg-surface px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-tertiary">Skills · ↑↓ to navigate · Enter to select</div>
                 {slashSuggestions.map((skill, index) => (
                   <button
