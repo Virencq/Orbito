@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { FormEvent, KeyboardEvent } from 'react'
+import type { CSSProperties, FormEvent, KeyboardEvent } from 'react'
 import { ArrowLeft, ChevronDown, Clock3, Folder, LockKeyhole, MessageSquare, Pencil, Pin, Plus, Send } from 'lucide-react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../../stores'
@@ -20,7 +20,7 @@ interface ProjectDetailPageProps {
 export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession, onOpenScheduled }: ProjectDetailPageProps) {
   const [prompt, setPrompt] = useState('')
   const promptRef = useRef<HTMLTextAreaElement>(null)
-  const [skillPickerStyle, setSkillPickerStyle] = useState<React.CSSProperties>({})
+  const [skillPickerStyle, setSkillPickerStyle] = useState<CSSProperties>({})
   const [activeSkillSuggestion, setActiveSkillSuggestion] = useState(0)
   const allSkills = useSkillStore((s) => s.skills)
   const enabledSkills = allSkills.filter((skill) => skill.enabled)
