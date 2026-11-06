@@ -619,7 +619,7 @@ export function ChatInput({
         <Card
           variant={isHero ? 'glass' : 'default'}
           className={`relative group transition-colors duration-150 border border-border ${
-            isHero ? 'shadow-none rounded-[16px] bg-surface p-0 overflow-visible' : 'shadow-sm rounded-xl bg-surface/96 p-1.5'
+            isHero ? 'shadow-none rounded-[16px] bg-surface p-0 overflow-visible' : 'shadow-sm rounded-xl bg-surface/96 p-1.5 overflow-visible'
           } ${isDragOver ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg' : 'focus-ring-accent'}`}
         >
           {isDragOver && (
