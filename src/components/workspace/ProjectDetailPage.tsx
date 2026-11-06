@@ -5,6 +5,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../../stores'
 import { useWorkspaceStore, type CoworkProject } from '../../stores/workspaceStore'
 import { useTaskStore } from '../../stores/taskStore'
+import { useSkillStore } from '../../stores/skillStore'
 import { readProjectInstructionFiles, saveProjectInstructionFile, type ProjectInstructionFile } from '../../utils/projectInstructionFiles'
 
 interface ProjectDetailPageProps {
@@ -56,6 +57,7 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
     return () => { cancelled = true }
   }, [activeProject.id, activeProject.path, activeProject.instructions])
   const tasks = useTaskStore((s) => s.tasks)
+  const enabledSkills = useSkillStore((s) => s.skills.filter((skill) => skill.enabled))
   const projectSessions = useMemo(() => {
     const normalize = (value: string) => value.split(String.fromCharCode(92)).join('/').toLowerCase()
     const projectPath = activeProject.path ? normalize(activeProject.path) : ''
@@ -170,6 +172,25 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
         <div className="border-b border-[#33332f] px-5 py-4">
           <div className="flex items-center justify-between"><h2 className="text-[13px] font-semibold text-[#e9e7e2]">Context</h2><button onClick={async () => { const selected = await openDialog({ directory: true, multiple: false, title: 'Add project context folder' }); if (typeof selected === 'string') useAppStore.getState().setWorkspaceDir(selected) }} className="rounded-md p-1 text-[#b8b5ae] hover:bg-[#2d2d29]" title="Add context folder"><Plus size={15}/></button></div>
           <div className="mt-3 flex items-center gap-2 text-[12px] text-[#c7c4bc]"><Folder size={14} className="shrink-0 text-[#96938b]"/><span className="truncate">{project.path || 'No context folder selected'}</span></div>
+        </div>
+
+        <div className="border-b border-[#33332f] px-5 py-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[13px] font-semibold text-[#e9e7e2]">Skills</h2>
+            <span className="rounded-full border border-[#3b3b36] px-2 py-0.5 text-[10px] text-[#aaa79f]">{enabledSkills.length} enabled</span>
+          </div>
+          {enabledSkills.length > 0 ? (
+            <div className="mt-3 space-y-2">
+              {enabledSkills.map((skill) => (
+                <div key={skill.name} className="min-w-0">
+                  <div className="truncate text-[12px] font-medium text-[#d8d5ce]">{skill.name}</div>
+                  {skill.description && <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-[#89877f]">{skill.description}</p>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-[12px] leading-5 text-[#89877f]">No enabled skills. Enable skills in Customize to make them available in project chats.</p>
+          )}
         </div>
 
         <div className="px-5 py-4">
