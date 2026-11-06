@@ -18,6 +18,15 @@ interface ProjectDetailPageProps {
 
 export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession, onOpenScheduled }: ProjectDetailPageProps) {
   const [prompt, setPrompt] = useState('')
+  const [activeSkillSuggestion, setActiveSkillSuggestion] = useState(0)
+  const allSkills = useSkillStore((s) => s.skills)
+  const enabledSkills = allSkills.filter((skill) => skill.enabled)
+  const slashMatch = prompt.match(/(?:^|\s)\/([\w-]*)$/)
+  const slashQuery = slashMatch?.[1]?.toLowerCase() ?? ''
+  const slashSuggestions = slashMatch
+    ? enabledSkills.filter((skill) => skill.name.toLowerCase().includes(slashQuery)).slice(0, 8)
+    : []
+  const showSlashSuggestions = !!slashMatch && slashSuggestions.length > 0
   const activeProject = useWorkspaceStore((s) => s.projects.find((item) => item.id === project.id) || project)
   const [editingInstructions, setEditingInstructions] = useState(false)
   const [instructions, setInstructions] = useState(project.instructions || '')
@@ -57,7 +66,7 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
     return () => { cancelled = true }
   }, [activeProject.id, activeProject.path, activeProject.instructions])
   const tasks = useTaskStore((s) => s.tasks)
-  const enabledSkills = useSkillStore((s) => s.skills.filter((skill) => skill.enabled))
+  useEffect(() => setActiveSkillSuggestion(0), [slashQuery])
   const projectSessions = useMemo(() => {
     const normalize = (value: string) => value.split(String.fromCharCode(92)).join('/').toLowerCase()
     const projectPath = activeProject.path ? normalize(activeProject.path) : ''
@@ -85,6 +94,31 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
     setPrompt('')
   }
 
+  const applySkillSuggestion = (skillName: string) => {
+    const instruction = \`Use the "\${skillName}" skill for this task. \`
+    setPrompt((current) => current.replace(/(?:^|\s)\/[\w-]*$/, instruction).trimStart())
+    setActiveSkillSuggestion(0)
+  }
+
+  const handlePromptKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!showSlashSuggestions) return
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      setActiveSkillSuggestion((index) => (index + 1) % slashSuggestions.length)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      setActiveSkillSuggestion((index) => (index - 1 + slashSuggestions.length) % slashSuggestions.length)
+    } else if (event.key === 'Escape') {
+      event.preventDefault()
+      setPrompt((current) => current.replace(/(?:^|\s)\/[\w-]*$/, '').trimEnd())
+      setActiveSkillSuggestion(0)
+    } else if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      const skill = slashSuggestions[activeSkillSuggestion] ?? slashSuggestions[0]
+      if (skill) applySkillSuggestion(skill.name)
+    }
+  }
+
   return (
     <div className="flex min-h-0 flex-1 bg-[#171716] text-[#e9e7e2]">
       <section className="min-w-0 flex-1 overflow-y-auto">
@@ -106,8 +140,27 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
 
           <div className="grid grid-cols-[minmax(0,1fr)] gap-8 xl:grid-cols-[minmax(0,650px)]">
             <div>
-              <form onSubmit={submit} className="overflow-hidden rounded-[20px] border border-[#454540] bg-[#20201e] shadow-[0_1px_0_rgba(255,255,255,.025)] focus-within:border-[#696963]">
-                <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={2} placeholder="What would you like to work on in this project?" className="block min-h-[76px] w-full resize-none bg-transparent px-5 pt-5 text-[14px] leading-6 text-[#f0eee9] outline-none placeholder:text-[#89877f]" />
+              <form onSubmit={submit} className="relative overflow-visible rounded-[20px] border border-[#454540] bg-[#20201e] shadow-[0_1px_0_rgba(255,255,255,.025)] focus-within:border-[#696963]">
+                {showSlashSuggestions && (
+                  <div role="listbox" aria-label="Skill suggestions" className="absolute bottom-[calc(100%+8px)] left-0 z-[90] flex max-h-[min(320px,45vh)] w-full flex-col overflow-y-auto overscroll-contain rounded-xl border border-[#454540] bg-[#20201e] shadow-xl">
+                    <div className="sticky top-0 z-10 shrink-0 border-b border-[#454540] bg-[#20201e] px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[#89877f]">Skills · ↑↓ to navigate · Enter to select</div>
+                    {slashSuggestions.map((skill, index) => (
+                      <button
+                        key={skill.name}
+                        type="button"
+                        role="option"
+                        aria-selected={index === activeSkillSuggestion}
+                        onMouseEnter={() => setActiveSkillSuggestion(index)}
+                        onClick={() => applySkillSuggestion(skill.name)}
+                        className={\`flex w-full flex-col px-3 py-2 text-left \${index === activeSkillSuggestion ? 'bg-[#30302c]' : 'hover:bg-[#30302c]'}\`}
+                      >
+                        <span className="text-[13px] font-medium text-[#e9e7e2]">/{skill.name}</span>
+                        <span className="line-clamp-1 text-[11px] text-[#89877f]">{skill.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} onKeyDown={handlePromptKeyDown} rows={2} placeholder="What would you like to work on in this project? Type / for skills" className="block min-h-[76px] w-full resize-none bg-transparent px-5 pt-5 text-[14px] leading-6 text-[#f0eee9] outline-none placeholder:text-[#89877f]" />
                 <div className="flex h-12 items-center justify-between px-4 pb-1">
                   <div className="flex items-center gap-2 text-[#bdbab2]">
                     <button type="button" onClick={async () => { const selected = await openDialog({ directory: true, multiple: false, title: 'Add project context folder' }); if (typeof selected === 'string') useAppStore.getState().setWorkspaceDir(selected) }} className="rounded-md p-1.5 hover:bg-[#30302c]" title="Add context folder"><Plus size={18}/></button>
