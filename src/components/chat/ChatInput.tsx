@@ -88,6 +88,7 @@ export function ChatInput({
     ? skills.filter((skill) => skill.name.toLowerCase().includes(slashQuery)).slice(0, 8)
     : []
   const showSlashSuggestions = !!slashMatch && slashSuggestions.length > 0
+  useEffect(() => setActiveSkillSuggestion(0), [slashQuery])
   const addMenuRef = useRef<HTMLDivElement>(null)
   const [dictation, setDictation] = useState<VoiceInputStatus | null>(null)
   const [dictationRuntimeAvailable, setDictationRuntimeAvailable] = useState<boolean | null>(null)
@@ -687,7 +688,7 @@ export function ChatInput({
         <Card
           variant={isHero ? 'glass' : 'default'}
           className={`relative group transition-colors duration-150 border border-border ${
-            isHero ? 'shadow-none rounded-[16px] bg-surface p-0 overflow-visible' : 'shadow-sm rounded-xl bg-surface/96 p-1.5'
+            isHero ? 'shadow-none rounded-[16px] bg-surface p-0 overflow-visible' : 'shadow-sm rounded-xl bg-surface/96 p-1.5 overflow-visible'
           } ${isDragOver ? 'ring-2 ring-accent ring-offset-2 ring-offset-bg' : 'focus-ring-accent'}`}
         >
           {isDragOver && (
