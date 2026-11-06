@@ -247,25 +247,6 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
           <div className="mt-3 flex items-center gap-2 text-[12px] text-[#c7c4bc]"><Folder size={14} className="shrink-0 text-[#96938b]"/><span className="truncate">{project.path || 'No context folder selected'}</span></div>
         </div>
 
-        <div className="border-b border-[#33332f] px-5 py-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-[13px] font-semibold text-[#e9e7e2]">Skills</h2>
-            <span className="rounded-full border border-[#3b3b36] px-2 py-0.5 text-[10px] text-[#aaa79f]">{enabledSkills.length} enabled</span>
-          </div>
-          {enabledSkills.length > 0 ? (
-            <div className="mt-3 space-y-2">
-              {enabledSkills.map((skill) => (
-                <div key={skill.name} className="min-w-0">
-                  <div className="truncate text-[12px] font-medium text-[#d8d5ce]">{skill.name}</div>
-                  {skill.description && <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-[#89877f]">{skill.description}</p>}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-2 text-[12px] leading-5 text-[#89877f]">No enabled skills. Enable skills in Customize to make them available in project chats.</p>
-          )}
-        </div>
-
         <div className="px-5 py-4">
           <div className="flex items-center justify-between"><h2 className="text-[13px] font-semibold text-[#e9e7e2]">Scheduled</h2><button onClick={onOpenScheduled} className="rounded-md p-1 text-[#b8b5ae] hover:bg-[#2d2d29]" title="Manage scheduled tasks"><Plus size={15}/></button></div>
           {projectTasks.length ? projectTasks.slice(0, 5).map((task) => <button key={task.id} onClick={onOpenScheduled} className="mt-3 flex w-full items-start gap-2 text-left"><Clock3 size={13} className="mt-0.5 shrink-0 text-[#96938b]"/><span className="min-w-0 flex-1"><span className="block truncate text-[12px] text-[#e9e7e2]">{task.name}</span><span className="block text-[11px] text-[#96938b]">{task.enabled ? 'Active' : 'Paused'}</span></span></button>) : <p className="mt-2 text-[12px] leading-5 text-[#89877f]">No scheduled tasks linked to this project.</p>}
