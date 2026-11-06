@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, KeyboardEvent } from 'react'
 import { ArrowLeft, ChevronDown, Clock3, Folder, LockKeyhole, MessageSquare, Pencil, Pin, Plus, Send } from 'lucide-react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '../../stores'
@@ -100,7 +100,7 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
     setActiveSkillSuggestion(0)
   }
 
-  const handlePromptKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handlePromptKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (!showSlashSuggestions) return
     if (event.key === 'ArrowDown') {
       event.preventDefault()
