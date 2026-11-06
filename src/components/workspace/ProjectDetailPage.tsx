@@ -95,7 +95,7 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
   }
 
   const applySkillSuggestion = (skillName: string) => {
-    const instruction = \`Use the "\${skillName}" skill for this task. \`
+    const instruction = `Use the "${skillName}" skill for this task. `
     setPrompt((current) => current.replace(/(?:^|\s)\/[\w-]*$/, instruction).trimStart())
     setActiveSkillSuggestion(0)
   }
@@ -152,7 +152,7 @@ export function ProjectDetailPage({ project, onBack, onStartChat, onOpenSession,
                         aria-selected={index === activeSkillSuggestion}
                         onMouseEnter={() => setActiveSkillSuggestion(index)}
                         onClick={() => applySkillSuggestion(skill.name)}
-                        className={\`flex w-full flex-col px-3 py-2 text-left \${index === activeSkillSuggestion ? 'bg-[#30302c]' : 'hover:bg-[#30302c]'}\`}
+                        className={`flex w-full flex-col px-3 py-2 text-left ${index === activeSkillSuggestion ? 'bg-[#30302c]' : 'hover:bg-[#30302c]'}`}
                       >
                         <span className="text-[13px] font-medium text-[#e9e7e2]">/{skill.name}</span>
                         <span className="line-clamp-1 text-[11px] text-[#89877f]">{skill.description}</span>
