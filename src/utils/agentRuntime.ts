@@ -36,7 +36,7 @@ export function formatAgentSkillsBlock(skills: SkillInfo[]): string | undefined 
   return skills.map((skill) => [
     `## Requested skill: ${skill.name}`,
     skill.content?.trim() || (skill.location ? `Read and follow: ${skill.location}` : ''),
-  ].filter(Boolean).join('\\n')).join('\\n\\n')
+  ].filter(Boolean).join('\n')).join('\n\n')
 }
 
 export function assembleAgentRuntimePrompt(
@@ -67,7 +67,7 @@ export function resolveAgentSkillNames(
       if (!skill.enabled) return false
       const name = skill.name.trim().toLocaleLowerCase()
       if (!name) return false
-      const escaped = name.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')
+      const escaped = name.replace(/[.*+?^${}()|[\\]\\]/g, '\\name.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')')
       return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(prompt)
     })
     .map((skill) => skill.name)
