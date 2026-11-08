@@ -319,7 +319,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         ? agentStore.agents.find((a) => a.id === agentStore.activeAgentId) : null
 
       const skillStore = useSkillStore.getState()
-      const enabledSkills = resolveAgentSkillNames(activeAgent ?? null, skillStore.skills)
+      const enabledSkills = resolveAgentSkillNames(activeAgent ?? null, skillStore.skills, content)
         .map(n => skillStore.skills.find(s => s.name === n))
         .filter((s): s is NonNullable<typeof s> => s !== undefined && s.enabled)
       const agentSkillsBlock = formatAgentSkillsBlock(enabledSkills)
