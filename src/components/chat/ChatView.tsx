@@ -280,18 +280,34 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
       // Orbito's MCP store on every prompt; that adds startup latency and creates
       // a second source of truth.
 
-      // Create or reuse JCode session
+      // Start ACP process/session initialization immediately, then overlap it
+      // with local prompt-context assembly below. The CLI process startup and
+      // instruction/skill reads are independent, so awaiting them sequentially
+      // unnecessarily adds both durations to the first-response path.
       let pid = (useAppStore.getState().sessions.find(s => s.id === sid) as any)?.piId ?? null
+      let jcodeSessionPromise: ReturnType<typeof JCode.createSession> | null = null
       if (!pid) {
         const createSessionStartedAt = startPerformanceTimer()
         recordPerformance('prompt.jcode-session-create.begin', { mode: workspaceMode })
+        jcodeSessionPromise = JCode.createSession(workspaceDir ?? undefined)
+          .then((ks) => {
+            recordPerformance('prompt.jcode-session-create.complete', { durationMs: elapsedPerformanceMs(createSessionStartedAt) })
+            return ks
+          })
+          .catch((error) => {
+            recordPerformance('prompt.jcode-session-create.failed', { durationMs: elapsedPerformanceMs(createSessionStartedAt), failed: true })
+            throw error
+          })
+      }
+
+      // Finish ACP initialization only after local context work has had a
+      // chance to run concurrently with process startup.
+      if (!pid && jcodeSessionPromise) {
         try {
-          const ks = await JCode.createSession(workspaceDir ?? undefined)
-          recordPerformance('prompt.jcode-session-create.complete', { durationMs: elapsedPerformanceMs(createSessionStartedAt) })
+          const ks = await jcodeSessionPromise
           pid = ks.id
           useAppStore.getState().setSessionPiId(sid, pid)
         } catch (error) {
-          recordPerformance('prompt.jcode-session-create.failed', { durationMs: elapsedPerformanceMs(createSessionStartedAt), failed: true })
           setError(t('chat.errors.sessionFailed'))
           usePetStore.getState().onError()
           return
@@ -300,7 +316,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
 
       // Subscribe for streaming visual feedback
       const subscribeStartedAt = startPerformanceTimer()
-      await subscribeStream(pid, sid)
+      await subscribeStream(pid!, sid)
       recordPerformance('prompt.stream-subscription.ready', { durationMs: elapsedPerformanceMs(subscribeStartedAt) })
 
       // Build context. Keep stage timings separate so local diagnostics can
