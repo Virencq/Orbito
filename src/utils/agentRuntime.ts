@@ -27,15 +27,33 @@ export interface AgentRuntimeConfig {
   agentMcpTools?: AgentMCPTool[]
 }
 
+/**
+ * Keep the prompt lightweight: advertise enabled/agent-mounted skills by
+ * metadata, then let the model read only the relevant SKILL.md file when a
+ * task needs it. Embedding every skill body on every turn caused very large
+ * prompts and unnecessary model prefill latency.
+ */
 export function formatAgentSkillsBlock(skills: SkillInfo[]): string | undefined {
   if (skills.length === 0) return undefined
-  const blocks = skills.map((skill) =>
-    skill.content
-      ? `<skill name="${skill.name}">\n${skill.description ? `Description: ${skill.description}\n` : ''}${skill.content}\n</skill>`
-      : `<skill name="${skill.name}">\n${skill.description || ''}\n</skill>`,
-  )
-  return '## Active Skills\nThe following skills are activated and their instructions should be followed:\n' +
-    blocks.join('\n\n')
+
+  const entries = skills.map((skill) => {
+    const name = skill.name.replace(/[\r\n]/g, ' ').trim()
+    const description = (skill.description || 'No description provided.')
+      .replace(/[\r\n]+/g, ' ')
+      .trim()
+      .slice(0, 180)
+    const location = skill.location
+      ? ` — file: ${skill.location.replace(/[\r\n]/g, '')}`
+      : ''
+    return `- ${name}: ${description}${location}`
+  })
+
+  return [
+    '## Available Skills',
+    'The following skills are available to this agent. Do not load or reproduce all skill instructions in advance.',
+    'When a task clearly needs a listed skill, use the available filesystem/read tool to open only that skill\'s SKILL.md file, follow its instructions for that task, and then continue. If no listed skill is relevant, do not read any skill file.',
+    ...entries,
+  ].join('\n')
 }
 
 export function assembleAgentRuntimePrompt(
@@ -51,10 +69,9 @@ export function assembleAgentRuntimePrompt(
 export const DEFAULT_AGENT_ID = 'agent_default'
 
 /**
- * Skills the agent should see. Custom agents are curated: only explicitly
- * mounted skills. The built-in default agent is a generalist — unless the
- * user mounted at least one skill on it, it sees every enabled skill, so
- * seeded skills (e.g. make-pptx) work out of the box.
+ * Custom agents see only explicitly mounted skills. The default agent sees
+ * every enabled skill, but only as a compact index; full skill bodies are
+ * loaded on demand by the model when a task actually needs one.
  */
 export function resolveAgentSkillNames(agent: Agent | null, availableSkills: SkillInfo[]): string[] {
   if (agent && agent.id !== DEFAULT_AGENT_ID && agent.skills.length > 0) {
