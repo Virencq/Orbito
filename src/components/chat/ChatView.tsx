@@ -285,7 +285,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
       // instruction/skill reads are independent, so awaiting them sequentially
       // unnecessarily adds both durations to the first-response path.
       let pid = (useAppStore.getState().sessions.find(s => s.id === sid) as any)?.piId ?? null
-      let jcodeSessionPromise: ReturnType<typeof JCode.createSession> | null = null
+      let jcodeSessionPromise: Promise<Awaited<ReturnType<typeof JCode.createSession>> | null> | null = null
       if (!pid) {
         const createSessionStartedAt = startPerformanceTimer()
         recordPerformance('prompt.jcode-session-create.begin', { mode: workspaceMode })
@@ -296,7 +296,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
           })
           .catch((error) => {
             recordPerformance('prompt.jcode-session-create.failed', { durationMs: elapsedPerformanceMs(createSessionStartedAt), failed: true })
-            throw error
+            return null
           })
       }
 
@@ -351,6 +351,11 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
       if (!pid && jcodeSessionPromise) {
         try {
           const ks = await jcodeSessionPromise
+          if (!ks) {
+            setError(t('chat.errors.sessionFailed'))
+            usePetStore.getState().onError()
+            return
+          }
           pid = ks.id
           useAppStore.getState().setSessionPiId(sid, pid)
         } catch (error) {
