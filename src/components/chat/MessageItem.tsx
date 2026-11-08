@@ -33,6 +33,9 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
   )
 
   const isDocument = !isUser && shouldUseDocumentLayout(allText)
+  // Part grouping allocates block arrays; memoize it so unrelated parent/store
+  // renders do not regroup a completed message.
+  const blocks = useMemo(() => groupPartsIntoBlocks(message.parts), [message.parts])
 
   const isThinking = useMemo(() => {
     if (!isStreaming) return false
@@ -116,17 +119,14 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
 
             <div className="relative">
               <div className="space-y-4">
-                {(() => {
-                  const blocks = groupPartsIntoBlocks(message.parts)
-                  return blocks.map((block, idx) => {
-                    switch (block.type) {
-                      case 'stack':
-                        return <StackBlock key={`stack-${idx}`} parts={block.parts} isStreaming={isStreaming} />
-                      case 'text':
-                        return <MainTextBlock key={`text-${idx}`} parts={block.parts} isStreaming={isStreaming} isDocument={isDocument} />
-                    }
-                  })
-                })()}
+                {blocks.map((block, idx) => {
+                  switch (block.type) {
+                    case 'stack':
+                      return <StackBlock key={`stack-${idx}`} parts={block.parts} isStreaming={isStreaming} />
+                    case 'text':
+                      return <MainTextBlock key={`text-${idx}`} parts={block.parts} isStreaming={isStreaming} isDocument={isDocument} />
+                  }
+                })}
               </div>
             </div>
           </div>
