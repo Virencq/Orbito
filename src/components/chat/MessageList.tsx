@@ -88,7 +88,7 @@ export function MessageList({ sessionId, onEdit, onDelete }: MessageListProps) {
 
     if (previousSessionRef.current !== sessionId) {
       previousSessionRef.current = sessionId
-      previousMessageCountRef.current = groupedMessages.length
+      previousMessageCountRef.current = groupedMessageCount
       wasAtBottomRef.current = true
       element.scrollTop = element.scrollHeight
       setAtBottom(true)
