@@ -28,32 +28,15 @@ export interface AgentRuntimeConfig {
 }
 
 /**
- * Keep the prompt lightweight: advertise enabled/agent-mounted skills by
- * metadata, then let the model read only the relevant SKILL.md file when a
- * task needs it. Embedding every skill body on every turn caused very large
- * prompts and unnecessary model prefill latency.
+ * Only include skill instructions when the user's current message explicitly
+ * names that skill. JCode remains responsible for its own native skill system.
  */
 export function formatAgentSkillsBlock(skills: SkillInfo[]): string | undefined {
   if (skills.length === 0) return undefined
-
-  const entries = skills.map((skill) => {
-    const name = skill.name.replace(/[\r\n]/g, ' ').trim()
-    const description = (skill.description || 'No description provided.')
-      .replace(/[\r\n]+/g, ' ')
-      .trim()
-      .slice(0, 180)
-    const location = skill.location
-      ? ` — file: ${skill.location.replace(/[\r\n]/g, '')}`
-      : ''
-    return `- ${name}: ${description}${location}`
-  })
-
-  return [
-    '## Available Skills',
-    'The following skills are available to this agent. Do not load or reproduce all skill instructions in advance.',
-    'When a task clearly needs a listed skill, use the available filesystem/read tool to open only that skill\'s SKILL.md file, follow its instructions for that task, and then continue. If no listed skill is relevant, do not read any skill file.',
-    ...entries,
-  ].join('\n')
+  return skills.map((skill) => [
+    `## Requested skill: ${skill.name}`,
+    skill.content?.trim() || (skill.location ? `Read and follow: ${skill.location}` : ''),
+  ].filter(Boolean).join('\\n')).join('\\n\\n')
 }
 
 export function assembleAgentRuntimePrompt(
@@ -69,18 +52,25 @@ export function assembleAgentRuntimePrompt(
 export const DEFAULT_AGENT_ID = 'agent_default'
 
 /**
- * Custom agents see only explicitly mounted skills. The default agent sees
- * every enabled skill, but only as a compact index; full skill bodies are
- * loaded on demand by the model when a task actually needs one.
+ * Orbito does not advertise or auto-select skills. JCode handles native skill
+ * discovery. Orbito injects only skills explicitly named in the user's prompt.
  */
-export function resolveAgentSkillNames(agent: Agent | null, availableSkills: SkillInfo[]): string[] {
-  if (agent && agent.id !== DEFAULT_AGENT_ID && agent.skills.length > 0) {
-    return [...agent.skills]
-  }
-  if (agent && agent.id !== DEFAULT_AGENT_ID) {
-    return []
-  }
-  return availableSkills.filter((skill) => skill.enabled).map((skill) => skill.name)
+export function resolveAgentSkillNames(
+  _agent: Agent | null,
+  availableSkills: SkillInfo[],
+  userPrompt = '',
+): string[] {
+  if (!userPrompt.trim()) return []
+  const prompt = userPrompt.toLocaleLowerCase()
+  return availableSkills
+    .filter((skill) => {
+      if (!skill.enabled) return false
+      const name = skill.name.trim().toLocaleLowerCase()
+      if (!name) return false
+      const escaped = name.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')
+      return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(prompt)
+    })
+    .map((skill) => skill.name)
 }
 
 export function buildAgentRuntimeSnapshot(
@@ -90,7 +80,7 @@ export function buildAgentRuntimeSnapshot(
   selectedSkillNames?: string[],
   workspaceDir?: string,
 ): TaskAgentRuntime {
-  const skillNames = selectedSkillNames ?? resolveAgentSkillNames(agent, availableSkills)
+  const skillNames = selectedSkillNames ?? []
   const enabledSkills = skillNames
     .map((name) => availableSkills.find((skill) => skill.name === name))
     .filter((skill): skill is SkillInfo => Boolean(skill?.enabled))
