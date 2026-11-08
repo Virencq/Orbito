@@ -300,25 +300,6 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
           })
       }
 
-      // Finish ACP initialization only after local context work has had a
-      // chance to run concurrently with process startup.
-      if (!pid && jcodeSessionPromise) {
-        try {
-          const ks = await jcodeSessionPromise
-          pid = ks.id
-          useAppStore.getState().setSessionPiId(sid, pid)
-        } catch (error) {
-          setError(t('chat.errors.sessionFailed'))
-          usePetStore.getState().onError()
-          return
-        }
-      }
-
-      // Subscribe for streaming visual feedback
-      const subscribeStartedAt = startPerformanceTimer()
-      await subscribeStream(pid!, sid)
-      recordPerformance('prompt.stream-subscription.ready', { durationMs: elapsedPerformanceMs(subscribeStartedAt) })
-
       // Build context. Keep stage timings separate so local diagnostics can
       // distinguish prompt assembly overhead from ACP/model latency.
       const contextBuildStartedAt = startPerformanceTimer()
@@ -364,6 +345,24 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         contextBlockCount: blocks.length,
         mcpToolCount: mcpToolDefs.length,
       })
+
+      // Finish ACP initialization after local context work has run concurrently
+      // with process startup, then subscribe before sending the prompt.
+      if (!pid && jcodeSessionPromise) {
+        try {
+          const ks = await jcodeSessionPromise
+          pid = ks.id
+          useAppStore.getState().setSessionPiId(sid, pid)
+        } catch (error) {
+          setError(t('chat.errors.sessionFailed'))
+          usePetStore.getState().onError()
+          return
+        }
+      }
+
+      const subscribeStartedAt = startPerformanceTimer()
+      await subscribeStream(pid!, sid)
+      recordPerformance('prompt.stream-subscription.ready', { durationMs: elapsedPerformanceMs(subscribeStartedAt) })
 
       let enrichedContent = content
       const allContextBlocks = [...blocks, ...projectFileInstructionBlocks.map((block) => `## Project Instruction File\n${block}`)]
