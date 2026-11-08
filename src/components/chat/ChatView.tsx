@@ -303,7 +303,9 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
       await subscribeStream(pid, sid)
       recordPerformance('prompt.stream-subscription.ready', { durationMs: elapsedPerformanceMs(subscribeStartedAt) })
 
-      // Build context
+      // Build context. Keep stage timings separate so local diagnostics can
+      // distinguish prompt assembly overhead from ACP/model latency.
+      const contextBuildStartedAt = startPerformanceTimer()
       const agentStore = useAgentStore.getState()
       const activeAgent = agentStore.activeAgentId
         ? agentStore.agents.find((a) => a.id === agentStore.activeAgentId) : null
@@ -313,6 +315,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         .map(n => skillStore.skills.find(s => s.name === n))
         .filter((s): s is NonNullable<typeof s> => s !== undefined && s.enabled)
       const agentSkillsBlock = formatAgentSkillsBlock(enabledSkills)
+      const skillsPromptChars = agentSkillsBlock?.length ?? 0
 
       const { blocks, mcpToolDefs, allowedSseMcpToolNames } = buildWorkspacePromptContext(
         workspaceMode,
@@ -324,14 +327,27 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
       // instructions; exact duplicate contents are de-duplicated by the shared loader.
       const projectFileInstructionBlocks: string[] = []
       const projectInstructionDirectory = activeProject?.path || workspaceDir
+      const instructionReadStartedAt = startPerformanceTimer()
+      let instructionFileCount = 0
       if (projectInstructionDirectory) {
         const seenInstructionContents = new Set<string>()
-        for (const file of await readProjectInstructionFiles(projectInstructionDirectory)) {
+        const instructionFiles = await readProjectInstructionFiles(projectInstructionDirectory)
+        instructionFileCount = instructionFiles.length
+        for (const file of instructionFiles) {
           if (seenInstructionContents.has(file.content)) continue
           seenInstructionContents.add(file.content)
           projectFileInstructionBlocks.push(`### ${file.name}\n${file.content}`)
         }
       }
+      recordPerformance('prompt.context-build.complete', {
+        durationMs: elapsedPerformanceMs(contextBuildStartedAt),
+        instructionReadMs: elapsedPerformanceMs(instructionReadStartedAt),
+        instructionFileCount,
+        skillCount: enabledSkills.length,
+        skillsPromptChars,
+        contextBlockCount: blocks.length,
+        mcpToolCount: mcpToolDefs.length,
+      })
 
       let enrichedContent = content
       const allContextBlocks = [...blocks, ...projectFileInstructionBlocks.map((block) => `## Project Instruction File\n${block}`)]
