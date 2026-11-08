@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { recordPerformance, startPerformanceTimer, elapsedPerformanceMs } from './performanceDiagnostics';
 
 export interface McpToolDef { serverName: string; name: string; description?: string; inputSchema?: unknown; }
 export interface ContextStatus { type: string; [key: string]: unknown; }
@@ -281,9 +282,14 @@ export async function prompt(sessionId: string, text: string, options: JCodeProm
   // Centralize global instruction injection so every JCode prompt path uses the
   // same saved file (chat, Code, and scheduled/background prompts).
   let globalInstructions = ''
+  const globalInstructionsStartedAt = startPerformanceTimer()
   try {
     const document = await invoke<{ path: string; content: string }>('jcode_read_global_instructions')
     globalInstructions = document.content.trim()
+    recordPerformance('prompt.global-instructions.loaded', {
+      durationMs: elapsedPerformanceMs(globalInstructionsStartedAt),
+      chars: globalInstructions.length,
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     console.error('[Orbito] Global instructions could not be loaded; prompt was not sent:', message)
@@ -298,6 +304,12 @@ export async function prompt(sessionId: string, text: string, options: JCodeProm
     text,
   ].filter(Boolean)
   const finalPrompt = promptSections.join('\n\n')
+  recordPerformance('prompt.final-prompt.assembled', {
+    totalChars: finalPrompt.length,
+    globalInstructionChars: globalInstructions.length,
+    systemPromptChars: options.systemPrompt?.length ?? 0,
+    userAndContextChars: text.length,
+  })
 
   let unlisten: (() => void) | undefined
   let settled = false
@@ -331,7 +343,11 @@ export async function prompt(sessionId: string, text: string, options: JCodeProm
     // A completion event can arrive immediately after listener registration.
     if (settled) unlisten()
 
+    recordPerformance('prompt.completion-listener.ready', { sessionListenerReady: true })
+
     // The completion listener must be installed before sending the ACP request.
+    const dispatchStartedAt = startPerformanceTimer()
+    recordPerformance('prompt.acp-dispatch.begin', { promptChars: finalPrompt.length })
     await invoke('jcode_prompt', {
       sessionId,
       prompt: finalPrompt,
@@ -340,6 +356,9 @@ export async function prompt(sessionId: string, text: string, options: JCodeProm
       ...(options.permissionRules !== undefined ? { permissionRules: options.permissionRules } : {}),
       ...(options.workspaceRoots !== undefined ? { workspaceRoots: options.workspaceRoots } : {}),
       ...(options.webSearchConfig !== undefined ? { webSearchConfig: options.webSearchConfig } : {}),
+    })
+    recordPerformance('prompt.acp-dispatch.accepted', {
+      dispatchInvokeMs: elapsedPerformanceMs(dispatchStartedAt),
     })
   } catch (error) {
     unlisten?.()
