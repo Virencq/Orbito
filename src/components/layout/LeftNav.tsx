@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import {
-  Archive, CalendarClock, ChevronRight, FolderKanban, FileCode2, Menu, Plus,
+  Archive, CalendarClock, ChevronRight, FolderKanban, FolderPlus, FileCode2, Menu, Plus,
   Search, Settings, Sparkles, X, SlidersHorizontal, MoreHorizontal, Pin, Pencil,
   Trash2, MailOpen, Check,
 } from 'lucide-react'
@@ -55,6 +55,8 @@ export function LeftNav({ width, onWidth, page, onPage, onNew, onSettings, codeM
   const coworkActiveSessionId = useAppStore((s) => s.activeSessionId)
   const codeActiveSessionId = useAppStore((s) => s.codeActiveSessionId)
   const codeProjects = useWorkspaceStore((s) => s.codeProjects)
+  const coworkProjects = useWorkspaceStore((s) => s.projects)
+  const updateCoworkProject = useWorkspaceStore((s) => s.updateProject)
   const activeCodeProjectId = useWorkspaceStore((s) => s.activeCodeProjectId)
   const addCodeProject = useWorkspaceStore((s) => s.addCodeProject)
   const updateCodeProject = useWorkspaceStore((s) => s.updateCodeProject)
@@ -73,6 +75,7 @@ export function LeftNav({ width, onWidth, page, onPage, onNew, onSettings, codeM
   const deleteSession = useAppStore((s) => s.deleteSession)
   const [menuId, setMenuId] = useState<string | null>(null)
   const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 })
+  const [assignProjectSessionId, setAssignProjectSessionId] = useState<string | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [filterPinned, setFilterPinned] = useState(false)
   const [taskQuery, setTaskQuery] = useState('')
@@ -93,7 +96,7 @@ export function LeftNav({ width, onWidth, page, onPage, onNew, onSettings, codeM
   const visibleTasks = filterPinned ? pinnedTasks : tasks
 
   useEffect(() => {
-    if (!menuId) return
+    if (!menuId) { setAssignProjectSessionId(null); return }
     const dismiss = (event: PointerEvent) => {
       if (!(event.target as HTMLElement).closest('[data-chat-menu]')) setMenuId(null)
     }
@@ -308,6 +311,26 @@ export function LeftNav({ width, onWidth, page, onPage, onNew, onSettings, codeM
                         })
                         setMenuId(null)
                       }} className="menu-row !h-7 !min-h-7 !gap-2 !rounded-md !px-2 !py-1 !text-[12px] !leading-4 !text-[#e8e6e3] hover:!bg-[#3a3a3a]"><Pin size={14}/>{pinned.has(s.id)?'Unpin':'Pin'}</button>
+
+                      <button onClick={()=>setAssignProjectSessionId(current => current === s.id ? null : s.id)} className="menu-row !h-7 !min-h-7 !gap-2 !rounded-md !px-2 !py-1 !text-[12px] !leading-4 !text-[#e8e6e3] hover:!bg-[#3a3a3a]"><FolderPlus size={14}/>Add to project<ChevronRight size={13} className="ml-auto"/></button>
+                      {assignProjectSessionId === s.id && (
+                        <div className="my-1 max-h-44 overflow-y-auto rounded-md border border-[#414141] bg-[#1d1d1d] p-1">
+                          {coworkProjects.length ? coworkProjects.map((project) => {
+                            const alreadyAdded = project.sessionId === s.id || !!project.sessionIds?.includes(s.id)
+                            return (
+                              <button key={project.id} disabled={alreadyAdded} onClick={() => {
+                                const sessionIds = [...new Set([...(project.sessionIds || []), ...(project.sessionId ? [project.sessionId] : []), s.id])]
+                                updateCoworkProject(project.id, { sessionId: project.sessionId || s.id, sessionIds })
+                                if (activeSessionId === s.id && project.path) useAppStore.getState().setWorkspaceDir(project.path)
+                                setAssignProjectSessionId(null)
+                                setMenuId(null)
+                              }} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] text-[#e8e6e3] hover:bg-[#3a3a3a] disabled:cursor-default disabled:opacity-50">
+                                <FolderKanban size={13} className="shrink-0"/><span className="min-w-0 flex-1 truncate">{project.name}</span>{alreadyAdded && <Check size={12}/>}
+                              </button>
+                            )
+                          }) : <p className="px-2 py-2 text-[11px] text-[#a9a39b]">No projects yet. Create one from Projects first.</p>}
+                        </div>
+                      )}
                       <button onClick={()=>beginRename(s.id,s.title)} className="menu-row"><Pencil size={14}/>Rename</button>
                       <button onClick={()=>{setUnread(p=>new Set(p).add(s.id));setMenuId(null)}} className="menu-row !h-7 !min-h-7 !gap-2 !rounded-md !px-2 !py-1 !text-[12px] !leading-4 !text-[#e8e6e3] hover:!bg-[#3a3a3a]"><MailOpen size={14}/>Mark as unread</button>
                       <div className="my-1 border-t border-[#414141]"/>
