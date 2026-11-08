@@ -120,6 +120,12 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
 
     const store = useAppStore.getState()
     if (!store.streamingMessage[sid]) return
+    if (!firstVisibleOutputLoggedRef.current && promptStartedAtRef.current !== null) {
+      firstVisibleOutputLoggedRef.current = true
+      recordPerformance('prompt.first-visible-text-commit', {
+        timeToFirstVisibleTextMs: elapsedPerformanceMs(promptStartedAtRef.current),
+      })
+    }
     for (const [partId, delta] of pending) {
       store.appendStreamingDelta(sid, partId, delta)
     }
@@ -138,6 +144,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
   }, [flushPendingText])
   const promptStartedAtRef = useRef<number | null>(null)
   const firstOutputLoggedRef = useRef(false)
+  const firstVisibleOutputLoggedRef = useRef(false)
 
   const subscribeStream = useCallback(async (jcodeSessionId: string, sid: string) => {
     streamUnsubsRef.current.get(jcodeSessionId)?.()
@@ -238,6 +245,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
       if ((!content || !content.trim()) && (!images || images.length === 0)) return
       promptStartedAtRef.current = null
       firstOutputLoggedRef.current = false
+      firstVisibleOutputLoggedRef.current = false
       recordPerformance('prompt.submit.begin', { mode: workspaceMode, hasImages: Boolean(images?.length), textLength: content.length })
       if (!sid) {
         sid = createModeSession()
@@ -291,7 +299,10 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         recordPerformance('prompt.jcode-session-create.begin', { mode: workspaceMode })
         jcodeSessionPromise = JCode.createSession(workspaceDir ?? undefined)
           .then((ks) => {
-            recordPerformance('prompt.jcode-session-create.complete', { durationMs: elapsedPerformanceMs(createSessionStartedAt) })
+            recordPerformance('prompt.jcode-session-create.complete', {
+              durationMs: elapsedPerformanceMs(createSessionStartedAt),
+              submitToSessionReadyMs: elapsedPerformanceMs(submitStartedAt),
+            })
             return ks
           })
           .catch((error) => {
@@ -407,7 +418,10 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
       }
 
       promptStartedAtRef.current = startPerformanceTimer()
-      recordPerformance('prompt.acp-request.begin', { mode: workspaceMode, setupDurationMs: elapsedPerformanceMs(submitStartedAt) })
+      recordPerformance('prompt.acp-request.begin', {
+        mode: workspaceMode,
+        submitToAcpDispatchMs: elapsedPerformanceMs(submitStartedAt),
+      })
       let result = await JCode.prompt(pid!, enrichedContent, promptOptions)
       recordPerformance('prompt.acp-request.completed', { durationMs: elapsedPerformanceMs(promptStartedAtRef.current), hadError: Boolean(result.error) })
 
