@@ -67,7 +67,10 @@ export function resolveAgentSkillNames(
       if (!skill.enabled) return false
       const name = skill.name.trim().toLocaleLowerCase()
       if (!name) return false
-      const escaped = name.replace(/[.*+?^${}()|[\\]\\]/g, '\\name.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')')
+      const index = prompt.indexOf(name)
+      if (index < 0) return false
+      const isWord = (value: string | undefined) => Boolean(value && /[a-z0-9]/i.test(value))
+      return !isWord(prompt[index - 1]) && !isWord(prompt[index + name.length])
       return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(prompt)
     })
     .map((skill) => skill.name)
