@@ -109,6 +109,8 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
   // reasoning events flush first so visible event order remains deterministic.
   const pendingTextDeltasRef = useRef(new Map<string, Map<string, string>>())
   const streamFlushTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const promptStartedAtRef = useRef<number | null>(null)
+  const firstVisibleOutputLoggedRef = useRef(false)
   const flushPendingText = useCallback((sid: string) => {
     const timer = streamFlushTimersRef.current.get(sid)
     if (timer !== undefined) clearTimeout(timer)
@@ -142,9 +144,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
       streamFlushTimersRef.current.set(sid, setTimeout(() => flushPendingText(sid), 40))
     }
   }, [flushPendingText])
-  const promptStartedAtRef = useRef<number | null>(null)
   const firstOutputLoggedRef = useRef(false)
-  const firstVisibleOutputLoggedRef = useRef(false)
 
   const subscribeStream = useCallback(async (jcodeSessionId: string, sid: string) => {
     streamUnsubsRef.current.get(jcodeSessionId)?.()
