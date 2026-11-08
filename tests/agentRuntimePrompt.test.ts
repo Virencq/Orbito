@@ -5,7 +5,7 @@ import {
 } from '../src/utils/agentRuntime'
 
 describe('agent runtime prompt', () => {
-  it('advertises skill metadata without embedding the full skill body', () => {
+  it('includes only the body of a specifically requested skill', () => {
     const skills = formatAgentSkillsBlock([{
       name: 'review',
       description: 'Review code',
@@ -18,10 +18,10 @@ describe('agent runtime prompt', () => {
 
     expect(prompt).toContain('## Identity')
     expect(prompt).toContain('## Available Skills')
-    expect(prompt).toContain('review: Review code')
-    expect(prompt).toContain('skills/review/SKILL.md')
-    expect(prompt).toContain('open only that skill')
-    expect(prompt).not.toContain('Check correctness before answering.')
+    expect(prompt).toContain('## Requested skill: review')
+    expect(prompt).toContain('Check correctness before answering.')
+    expect(prompt).not.toContain('Available Skills')
+    
   })
 
   it('does not emit an empty skills section', () => {
