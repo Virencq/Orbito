@@ -63,6 +63,9 @@ export function MessageList({ sessionId, onEdit, onDelete }: MessageListProps) {
     return result
   }, [messages, streamingMessage, sessionId])
 
+  const groupedMessageCount = groupedMessages.length
+  const lastMessageRole = groupedMessages[groupedMessages.length - 1]?.info.role
+
   const updateBottomState = useCallback(() => {
     const element = scrollRef.current
     if (!element) return
@@ -93,9 +96,8 @@ export function MessageList({ sessionId, onEdit, onDelete }: MessageListProps) {
     }
 
     const previousCount = previousMessageCountRef.current
-    previousMessageCountRef.current = groupedMessages.length
-    const last = groupedMessages[groupedMessages.length - 1]
-    if (groupedMessages.length > previousCount && last?.info.role === 'user') {
+    previousMessageCountRef.current = groupedMessageCount
+    if (groupedMessageCount > previousCount && lastMessageRole === 'user') {
       wasAtBottomRef.current = true
       element.scrollTop = element.scrollHeight
       setAtBottom(true)
@@ -106,7 +108,7 @@ export function MessageList({ sessionId, onEdit, onDelete }: MessageListProps) {
     } else {
       updateBottomState()
     }
-  }, [sessionId, groupedMessages, updateBottomState])
+  }, [sessionId, groupedMessageCount, lastMessageRole, updateBottomState])
 
   // Markdown/code blocks can grow after their first render (e.g. syntax
   // highlighting or images). Follow those height changes only while pinned.
