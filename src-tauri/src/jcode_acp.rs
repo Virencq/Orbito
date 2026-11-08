@@ -118,6 +118,14 @@ fn read_until_response(
 }
 
 fn find_jcode() -> Result<PathBuf, String> {
+    // Resolve and validate the executable once per Orbito process. Session creation
+    // can happen frequently; spawning `jcode --version` for every new ACP session
+    // adds an avoidable process launch before the actual ACP process is started.
+    static JCODE_EXECUTABLE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    if let Some(executable) = JCODE_EXECUTABLE.get() {
+        return Ok(executable.clone());
+    }
+
     // A packaged Windows app launched from the Start menu does not necessarily
     // inherit the PATH that was updated in an existing terminal. Check the
     // documented per-user install location before relying on PATH.
@@ -173,6 +181,7 @@ fn find_jcode() -> Result<PathBuf, String> {
             .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
         configure_no_console(&mut version_command);
         if version_command.status().is_ok() {
+            let _ = JCODE_EXECUTABLE.set(executable.clone());
             return Ok(executable);
         }
     }
