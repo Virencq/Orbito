@@ -34,7 +34,7 @@ function makeAgent(): Agent {
 }
 
 describe('task agent runtime snapshot', () => {
-  it('captures the selected Soul, skill metadata, permissions, workspace, model and MCP scope', () => {
+  it('captures only explicitly selected skill instructions with the agent runtime', () => {
     const snapshot = buildAgentRuntimeSnapshot(makeAgent(), [
       { name: 'review', description: 'Review code', content: 'Check evidence.', location: 'C:\\skills\\review\\SKILL.md', enabled: true },
       { name: 'unused', description: '', content: 'Do not include.', location: 'C:\\skills\\unused\\SKILL.md', enabled: true },
@@ -43,9 +43,9 @@ describe('task agent runtime snapshot', () => {
     expect(snapshot.agentId).toBe('agent-reviewer')
     expect(snapshot.agentName).toBe('Reviewer')
     expect(snapshot.agentSystemPrompt).toContain('Be candid and calm.')
-    expect(snapshot.agentSkillsBlock).toContain('review: Review code')
+    expect(snapshot.agentSkillsBlock).toContain('## Requested skill: review')
     expect(snapshot.agentSkillsBlock).toContain('C:\\skills\\review\\SKILL.md')
-    expect(snapshot.agentSkillsBlock).not.toContain('Check evidence.')
+    
     expect(snapshot.agentSkillsBlock).not.toContain('unused')
     expect(snapshot.permissionRules).toEqual({ read: 'allow', edit: 'deny' })
     expect(snapshot.workspaceRoots?.[0].access).toBe('read')
@@ -60,16 +60,16 @@ describe('task agent runtime snapshot', () => {
     expect(snapshot.agentMcpTools).toEqual([])
   })
 
-  it('gives the uncurated default agent a compact index of every enabled skill', () => {
+  it('does not auto-inject skills for the default agent', () => {
     const defaultAgent = { ...makeAgent(), id: 'agent_default', skills: [] }
     const snapshot = buildAgentRuntimeSnapshot(defaultAgent, [
       { name: 'make-pptx', description: 'PPT skill', content: 'ppt workflow', location: 'skills/make-pptx/SKILL.md', enabled: true },
       { name: 'off-skill', description: '', content: 'disabled', location: 'skills/off/SKILL.md', enabled: false },
     ], '', undefined)
 
-    expect(snapshot.agentSkillsBlock).toContain('make-pptx: PPT skill')
-    expect(snapshot.agentSkillsBlock).not.toContain('ppt workflow')
-    expect(snapshot.agentSkillsBlock).not.toContain('off-skill')
+    expect(snapshot.agentSkillsBlock).toBeUndefined()
+    
+    
   })
 
   it('keeps custom agents curated when nothing is mounted', () => {
