@@ -20,22 +20,26 @@ export interface ProjectInstructionFile {
  * Callers can de-duplicate prompt content separately while still showing every source.
  */
 export async function readProjectInstructionFiles(directory: string): Promise<ProjectInstructionFile[]> {
-  const results: ProjectInstructionFile[] = []
-  const seenPaths = new Set<string>()
-  for (const name of PROJECT_INSTRUCTION_FILE_NAMES) {
-    const path = joinPath(directory, name)
-    const normalizedPath = path.toLowerCase()
-    if (seenPaths.has(normalizedPath)) continue
-    seenPaths.add(normalizedPath)
+  const uniqueFiles = PROJECT_INSTRUCTION_FILE_NAMES
+    .map((name) => ({ name, path: joinPath(directory, name) }))
+    .filter((file, index, files) =>
+      files.findIndex((candidate) => candidate.path.toLowerCase() === file.path.toLowerCase()) === index,
+    )
+
+  // These are independent optional reads. Run them concurrently instead of
+  // paying four sequential Tauri IPC round-trips on every submitted prompt.
+  const results = await Promise.all(uniqueFiles.map(async ({ name, path }) => {
     try {
       const content = await invoke<string>('read_text_file', { path })
       const normalizedContent = content.trim()
-      if (normalizedContent) results.push({ name, path, content: normalizedContent })
+      return normalizedContent ? { name, path, content: normalizedContent } : null
     } catch {
       // Missing optional instruction files are expected.
+      return null
     }
-  }
-  return results
+  }))
+
+  return results.filter((file): file is ProjectInstructionFile => file !== null)
 }
 
 /**
