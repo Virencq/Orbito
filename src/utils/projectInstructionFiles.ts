@@ -28,7 +28,7 @@ export async function readProjectInstructionFiles(directory: string): Promise<Pr
 
   // These are independent optional reads. Run them concurrently instead of
   // paying four sequential Tauri IPC round-trips on every submitted prompt.
-  const results = await Promise.all(uniqueFiles.map(async ({ name, path }) => {
+  const results: (ProjectInstructionFile | null)[] = await Promise.all(uniqueFiles.map(async ({ name, path }): Promise<ProjectInstructionFile | null> => {
     try {
       const content = await invoke<string>('read_text_file', { path })
       const normalizedContent = content.trim()
