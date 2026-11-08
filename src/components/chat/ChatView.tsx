@@ -105,6 +105,37 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
   const [pendingApproval, setPendingApproval] = useState<{ requestId: string; toolName: string; args: any; reason?: string; piSessionId: string } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const streamUnsubsRef = useRef(new Map<string, () => void>())
+  // Coalesce high-frequency ACP text deltas into short UI batches. Tool and
+  // reasoning events flush first so visible event order remains deterministic.
+  const pendingTextDeltasRef = useRef(new Map<string, Map<string, string>>())
+  const streamFlushTimersRef = useRef(new Map<string, ReturnType<typeof setTimeout>>())
+  const flushPendingText = useCallback((sid: string) => {
+    const timer = streamFlushTimersRef.current.get(sid)
+    if (timer !== undefined) clearTimeout(timer)
+    streamFlushTimersRef.current.delete(sid)
+
+    const pending = pendingTextDeltasRef.current.get(sid)
+    if (!pending) return
+    pendingTextDeltasRef.current.delete(sid)
+
+    const store = useAppStore.getState()
+    if (!store.streamingMessage[sid]) return
+    for (const [partId, delta] of pending) {
+      store.appendStreamingDelta(sid, partId, delta)
+    }
+  }, [])
+  const queueTextDelta = useCallback((sid: string, partId: string, delta: string) => {
+    let pending = pendingTextDeltasRef.current.get(sid)
+    if (!pending) {
+      pending = new Map<string, string>()
+      pendingTextDeltasRef.current.set(sid, pending)
+    }
+    pending.set(partId, (pending.get(partId) || '') + delta)
+
+    if (!streamFlushTimersRef.current.has(sid)) {
+      streamFlushTimersRef.current.set(sid, setTimeout(() => flushPendingText(sid), 40))
+    }
+  }, [flushPendingText])
   const promptStartedAtRef = useRef<number | null>(null)
   const firstOutputLoggedRef = useRef(false)
 
@@ -118,10 +149,11 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
           recordPerformance('prompt.first-text-chunk', { timeToFirstOutputMs: elapsedPerformanceMs(promptStartedAtRef.current), mode: workspaceMode })
         }
         if (useAppStore.getState().streamingMessage[sid]) {
-          useAppStore.getState().appendStreamingDelta(sid, partPid, delta)
+          queueTextDelta(sid, partPid, delta)
         }
       },
       onThinking: (delta) => {
+        flushPendingText(sid)
         const sm = useAppStore.getState().streamingMessage[sid]
         if (!sm) return
         // Keep one reasoning part for the whole assistant turn. Creating a new
@@ -138,6 +170,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         }
       },
       onToolCall: (id, name, args) => {
+        flushPendingText(sid)
         console.log('[Orbito] Tool call:', name, id)
         usePetStore.getState().onWorking()
         const sm = useAppStore.getState().streamingMessage[sid]
@@ -149,6 +182,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         } as any)
       },
       onToolResult: (id, name, result) => {
+        flushPendingText(sid)
         const sm = useAppStore.getState().streamingMessage[sid]
         if (!sm) return
         useAppStore.getState().updateStreamingPart(sid, id, {
@@ -158,6 +192,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         } as any)
       },
       onToolApproval: (request) => {
+        flushPendingText(sid)
         setPendingApproval({ ...request, piSessionId: jcodeSessionId })
       },
       onStatus: (status) => {
@@ -166,12 +201,18 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         }
       },
       onDone: () => {
+        flushPendingText(sid)
         unsubscribe()
         streamUnsubsRef.current.delete(jcodeSessionId)
       },
     })
     streamUnsubsRef.current.set(jcodeSessionId, unsubscribe)
-  }, [])
+  }, [flushPendingText, queueTextDelta])
+
+  // Do not leave delayed stream updates behind when this chat view unmounts.
+  useEffect(() => () => {
+    for (const sid of pendingTextDeltasRef.current.keys()) flushPendingText(sid)
+  }, [flushPendingText])
 
   const session = sessions.find((s) => s.id === activeSessionId)
   // Subscribe only to the visible conversation. Subscribing to the entire map made
@@ -437,6 +478,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
   }, [activeSessionId, deleteMessage, deleteMessagesFrom])
 
   const abort = useCallback(() => {
+    if (activeSessionId) flushPendingText(activeSessionId)
     if (activeJCodeSessionId) {
       JCode.abortSession(activeJCodeSessionId)
       streamUnsubsRef.current.get(activeJCodeSessionId)?.()
@@ -445,7 +487,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
     if (activeSessionId) finishStreaming(activeSessionId)
     if (getVoiceConversation().active) setVoiceConversation(false)
     usePetStore.getState().onResponded()
-  }, [activeJCodeSessionId, activeSessionId, finishStreaming])
+  }, [activeJCodeSessionId, activeSessionId, finishStreaming, flushPendingText])
 
   // ── File/folder drag into message area ──
 
