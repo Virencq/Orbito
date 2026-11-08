@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { TextPartView } from '../parts'
 import type { MessagePart } from '../../../types'
 
@@ -8,8 +9,8 @@ interface MainTextBlockProps {
 }
 
 export function MainTextBlock({ parts, isStreaming, isDocument }: MainTextBlockProps) {
-  // Merge all text from sequential text parts
-  const allText = parts.map(p => (p as any).text || '').join('\n')
+  // Avoid rebuilding combined text on unrelated parent renders.
+  const allText = useMemo(() => parts.map(p => ('text' in p ? p.text : '') || '').join('\n'), [parts])
 
   // Do not render an empty streaming text container; activity feedback lives on the Cowork logo.
   if (!allText.trim()) return null
