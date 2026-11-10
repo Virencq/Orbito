@@ -88,13 +88,48 @@ fn restore_window_state(app: &tauri::AppHandle) {
 
         let width = state.width.clamp(800, 7680);
         let height = state.height.clamp(600, 4320);
+        let monitors = app.available_monitors().map_err(|error| error.to_string())?;
+
+        // A saved position may belong to a monitor that has since been
+        // disconnected. Restore to a visible monitor instead of leaving the
+        // window off-screen and apparently not launched.
+        let has_visible_area = monitors.iter().any(|monitor| {
+            let position = monitor.position();
+            let size = monitor.size();
+            let left = i64::from(state.x).max(i64::from(position.x));
+            let top = i64::from(state.y).max(i64::from(position.y));
+            let right = (i64::from(state.x) + i64::from(width))
+                .min(i64::from(position.x) + i64::from(size.width));
+            let bottom = (i64::from(state.y) + i64::from(height))
+                .min(i64::from(position.y) + i64::from(size.height));
+            right - left >= 100 && bottom - top >= 80
+        });
+
+        let (x, y) = if has_visible_area {
+            (state.x, state.y)
+        } else if let Some(monitor) = monitors.first() {
+            let position = monitor.position();
+            let size = monitor.size();
+            let x = i64::from(position.x)
+                + ((i64::from(size.width) - i64::from(width)).max(0) / 2);
+            let y = i64::from(position.y)
+                + ((i64::from(size.height) - i64::from(height)).max(0) / 2);
+            (x.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32,
+             y.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32)
+        } else {
+            (40, 40)
+        };
+
         window.set_size(tauri::PhysicalSize::new(width, height))
             .map_err(|error| error.to_string())?;
-        window.set_position(tauri::PhysicalPosition::new(state.x, state.y))
+        window.set_position(tauri::PhysicalPosition::new(x, y))
             .map_err(|error| error.to_string())?;
         if state.maximized {
             window.maximize().map_err(|error| error.to_string())?;
         }
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
         Ok(())
     })();
     if let Err(error) = result {
