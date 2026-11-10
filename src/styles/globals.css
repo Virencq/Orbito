@@ -680,7 +680,7 @@ button {
 .chat-scroll-area .prose,
 .chat-scroll-area [class~="prose"] {
   max-width: none;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.68;
   letter-spacing: -0.012em;
 }
@@ -697,13 +697,13 @@ button {
   margin-bottom: .45em;
 }
 .chat-scroll-area .prose h1,
-.chat-scroll-area [class~="prose"] h1 { font-size: 1.5rem; }
+.chat-scroll-area [class~="prose"] h1 { font-size: 20px; }
 .chat-scroll-area .prose h2,
-.chat-scroll-area [class~="prose"] h2 { font-size: 1.3rem; }
+.chat-scroll-area [class~="prose"] h2 { font-size: 18px; }
 .chat-scroll-area .prose h3,
-.chat-scroll-area [class~="prose"] h3 { font-size: 1.15rem; }
+.chat-scroll-area [class~="prose"] h3 { font-size: 16px; }
 .chat-scroll-area .prose h4,
-.chat-scroll-area [class~="prose"] h4 { font-size: 1.05rem; }
+.chat-scroll-area [class~="prose"] h4 { font-size: 15px; }
 .chat-scroll-area .prose :is(ul, ol),
 .chat-scroll-area [class~="prose"] :is(ul, ol) {
   padding-left: 1.35em;
@@ -803,7 +803,7 @@ button {
 .dark .chat-scroll-area .prose td,
 .dark .chat-scroll-area .prose th {
   color: #f0efed;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.72;
   font-weight: 400;
 }
@@ -905,6 +905,7 @@ button {
 .dark .chat-scroll-area .prose td,
 .dark .chat-scroll-area .prose th {
   color: #d8d5cf;
+  font-size: 14px;
 }
 .dark .chat-scroll-area .prose strong,
 .dark .chat-scroll-area .prose b,
