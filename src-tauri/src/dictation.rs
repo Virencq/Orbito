@@ -37,14 +37,22 @@ fn status(dictation: &Dictation) -> VoiceInputStatus {
 }
 
 #[cfg(target_os = "windows")]
+fn configure_no_console(command: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+}
+
+#[cfg(target_os = "windows")]
 fn compatibility() -> (bool, String, Option<String>) {
     // The Windows version probe launches cmd.exe, which can take noticeable time.
     // Cache its result so opening Voice Input repeatedly does not spawn a shell each time.
     static COMPATIBILITY: OnceLock<(bool, String, Option<String>)> = OnceLock::new();
     COMPATIBILITY
         .get_or_init(|| {
-            let version = Command::new("cmd")
-                .args(["/C", "ver"])
+            let mut command = Command::new("cmd");
+            command.args(["/C", "ver"]);
+            configure_no_console(&mut command);
+            let version = command
                 .output()
                 .ok()
                 .filter(|output| output.status.success())
