@@ -696,6 +696,14 @@ button {
   margin-top: 1.15em;
   margin-bottom: .45em;
 }
+.chat-scroll-area .prose h1,
+.chat-scroll-area [class~="prose"] h1 { font-size: 1.5rem; }
+.chat-scroll-area .prose h2,
+.chat-scroll-area [class~="prose"] h2 { font-size: 1.3rem; }
+.chat-scroll-area .prose h3,
+.chat-scroll-area [class~="prose"] h3 { font-size: 1.15rem; }
+.chat-scroll-area .prose h4,
+.chat-scroll-area [class~="prose"] h4 { font-size: 1.05rem; }
 .chat-scroll-area .prose :is(ul, ol),
 .chat-scroll-area [class~="prose"] :is(ul, ol) {
   padding-left: 1.35em;
