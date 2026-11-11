@@ -133,7 +133,7 @@ export interface MessageRow {
 export async function getMessages(sessionId: string): Promise<KiloMessage[]> {
   const d = await getDatabase()
   const rows = await d.select<MessageRow[]>(
-    'SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC',
+    'SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC, rowid ASC',
     [sessionId]
   )
   return rows.map(row => ({
@@ -152,7 +152,7 @@ export async function saveMessage(
   const d = await getDatabase()
   const now = Date.now()
   await d.execute(
-    'INSERT OR REPLACE INTO messages (id, session_id, role, parts, info, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+    'INSERT INTO messages (id, session_id, role, parts, info, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET parts = excluded.parts, info = excluded.info',
     [id, sessionId, role, JSON.stringify(parts), JSON.stringify(info), now]
   )
 }
@@ -169,18 +169,7 @@ export async function deleteMessagesByIds(ids: string[]): Promise<void> {
   await d.execute(`DELETE FROM messages WHERE id IN (${placeholders})`, ids)
 }
 
-export async function deleteMessagesBySession(sessionId: string): Promise<void> {
-  const d = await getDatabase()
-  await d.execute('DELETE FROM messages WHERE session_id = ?', [sessionId])
-}
-
 // ---- Settings ----
-
-export async function getSetting(key: string): Promise<string | null> {
-  const d = await getDatabase()
-  const rows = await d.select<{ value: string }[]>('SELECT value FROM app_settings WHERE key = ?', [key])
-  return rows[0]?.value || null
-}
 
 export async function setSetting(key: string, value: string): Promise<void> {
   const d = await getDatabase()
@@ -190,10 +179,3 @@ export async function setSetting(key: string, value: string): Promise<void> {
   )
 }
 
-// ---- Utilities ----
-
-export async function clearAllData(): Promise<void> {
-  const d = await getDatabase()
-  await d.execute('DELETE FROM messages')
-  await d.execute('DELETE FROM sessions')
-}

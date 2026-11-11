@@ -101,7 +101,7 @@
 }
 
 /* ── Animations ── */
-.cowork-logo {
+.orbito-logo {
   display: inline-grid;
   flex: 0 0 auto;
   place-items: center;
@@ -109,9 +109,9 @@
   color: var(--color-accent);
   transform-origin: 50% 50%;
 }
-.cowork-logo svg { display: block; overflow: visible; }
-.cowork-logo--working { animation: none; }
-.cowork-logo--working .cowork-logo-ring {
+.orbito-logo svg { display: block; overflow: visible; }
+.orbito-logo--working { animation: none; }
+.orbito-logo--working .orbito-logo-ring {
   stroke: #f0784d;
   stroke-opacity: .95;
   stroke-dasharray: 25 88;
@@ -122,7 +122,7 @@
 }
 @keyframes cowork-ring-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
-  .cowork-logo--working .cowork-logo-ring { animation: none; stroke-dasharray: none; }
+  .orbito-logo--working .orbito-logo-ring { animation: none; stroke-dasharray: none; }
 }
 
 

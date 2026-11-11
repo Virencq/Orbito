@@ -134,13 +134,12 @@ describe('mcpStore', () => {
     // connectServer was called (via the store's internal logic), which triggers invoke
   })
 
-  it('reconnects enabled stdio servers missing from the live process snapshot', async () => {
-    invoke.mockResolvedValueOnce([]) // mcp_list_servers returns empty
-    invoke.mockResolvedValue({
-      name: 'connected-server',
-      status: 'connected',
-      error: null,
-      tools: [],
+  it('leaves enabled stdio servers dormant when no live process exists', async () => {
+    invoke.mockImplementation(async (command: string) => {
+      if (command === 'jcode_read_mcp_config') return { mcpServers: {} }
+      if (command === 'mcp_list_servers') return []
+      if (command === 'mcp_secret_get') return {}
+      return undefined
     })
 
     useMCPStore.getState().addServer({
@@ -150,15 +149,12 @@ describe('mcpStore', () => {
       name: 's2', type: 'stdio', command: 'node', args: [],
     })
 
-    await useMCPStore.getState().refreshAllServers()
+    await useMCPStore.getState().refreshAllServers(true)
 
     expect(invoke).toHaveBeenCalledWith('mcp_list_servers')
-    expect(invoke).toHaveBeenCalledWith('mcp_connect', {
-      name: 's1', command: 'node', args: [],
-    })
-    expect(invoke).toHaveBeenCalledWith('mcp_connect', {
-      name: 's2', command: 'node', args: [],
-    })
+    expect(invoke).not.toHaveBeenCalledWith('mcp_connect', expect.anything())
+    expect(useMCPStore.getState().serverStatuses.s1?.status).toBe('disabled')
+    expect(useMCPStore.getState().serverStatuses.s2?.status).toBe('disabled')
   })
 
   it('refreshes a single enabled server', async () => {

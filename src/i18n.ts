@@ -10,7 +10,7 @@ void i18n.use(initReactI18next).init({
       translation: {
         mcp: {
           title: 'MCP Servers',
-          description: 'Manage Model Context Protocol servers available to Cowork and JCode.',
+          description: 'Manage Model Context Protocol servers available to Orbito and JCode.',
           syncAll: 'Sync All',
           addServer: 'Add Server',
           emptyTitle: 'No MCP servers configured',

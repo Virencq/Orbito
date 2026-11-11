@@ -49,33 +49,8 @@ describe('PptxPreview', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders the officecli HTML document when the preview endpoint succeeds', async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response('<html><body><h1>Rendered deck</h1></body></html>', {
-        status: 200,
-        headers: { 'content-type': 'text/html; charset=utf-8' },
-      }),
-    ) as unknown as typeof fetch
-
-    const onLoaded = vi.fn()
-    render(<PptxPreview filePath="C:/ws/decks/a.pptx" onLoaded={onLoaded} onError={vi.fn()} />)
-
-    const frame = await screen.findByTitle('PPTX preview')
-    expect(frame.getAttribute('sandbox')).toBe('allow-scripts')
-    expect(frame.getAttribute('srcdoc')).toContain('Rendered deck')
-
-    const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string
-    expect(calledUrl).toBe('/preview/pptx?path=' + encodeURIComponent('C:/ws/decks/a.pptx'))
-    await waitFor(() => expect(onLoaded).toHaveBeenCalled())
-  })
-
-  it('falls back to OOXML text extraction when the endpoint fails', async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response(JSON.stringify({ error: 'officecli unavailable' }), {
-        status: 503,
-        headers: { 'content-type': 'application/json' },
-      }),
-    ) as unknown as typeof fetch
+  it('uses local OOXML text extraction without a remote preview endpoint', async () => {
+    globalThis.fetch = vi.fn() as unknown as typeof fetch
 
     const bytes = await makePptxBytes()
     vi.mocked(invoke).mockImplementation(async (command) => {
@@ -89,5 +64,6 @@ describe('PptxPreview', () => {
       expect(screen.getByText(/Hello fallback preview/)).toBeTruthy()
     })
     expect(screen.getByText('1 / 1')).toBeTruthy()
+    expect(globalThis.fetch).not.toHaveBeenCalled()
   })
 })

@@ -1,4 +1,4 @@
-import type { PlatformId } from './platform'
+type PlatformId = 'telegram' | 'email' | 'webhook' | 'feishu' | 'dingtalk' | 'wechat' | 'slack' | 'discord' | 'qqbot'
 import type { AgentMCPTool, PermissionAction, PermissionRule, WorkspaceRoot } from './agent'
 
 export type ScheduleKind = 'once' | 'interval' | 'cron'

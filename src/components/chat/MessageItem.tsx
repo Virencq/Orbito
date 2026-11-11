@@ -5,7 +5,7 @@ import { MessageActionBar } from './shared/MessageActionBar'
 import { shouldUseDocumentLayout } from './shared/markdownLayout'
 import { FileChip } from './shared/FileChip'
 import { User, Sparkles } from 'lucide-react'
-import { CoworkLogo } from '../ui/CoworkLogo'
+import { OrbitoLogo } from '../ui/OrbitoLogo'
 
 import type { KiloMessage, MessagePart, TextPart } from '../../types'
 
@@ -100,7 +100,7 @@ export const MessageItem = memo(function MessageItem({ message, isStreaming = fa
         {/* Markdown's first paragraph has top margin; align the logo with its first text line. */}
         <div className="shrink-0 mt-3">
           <div className="relative group/bot">
-            <CoworkLogo isWorking={isStreaming} size={27} />
+            <OrbitoLogo isWorking={isStreaming} size={27} />
           </div>
         </div>
 

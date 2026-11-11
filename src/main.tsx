@@ -19,7 +19,7 @@ class StartupErrorBoundary extends React.Component<
     return (
       <div className="h-screen w-screen grid place-items-center bg-[#faf9f7] text-[#302c28] p-8">
         <div className="w-full max-w-lg rounded-2xl border border-[#e5e0da] bg-white p-6 shadow-sm">
-          <h1 className="text-lg font-semibold">Cowork could not start</h1>
+          <h1 className="text-lg font-semibold">Orbito could not start</h1>
           <p className="mt-2 text-sm text-[#746c64]">
             The desktop UI hit an unexpected error. Restarting the window may recover it, but the error below is useful for fixing the underlying problem.
           </p>
@@ -29,7 +29,7 @@ class StartupErrorBoundary extends React.Component<
             onClick={() => window.location.reload()}
             className="mt-4 rounded-lg bg-[#302c28] px-4 py-2 text-xs font-semibold text-white hover:bg-black"
           >
-            Reload Cowork
+            Reload Orbito
           </button>
         </div>
       </div>

@@ -97,8 +97,8 @@ function isPrerelease(version) {
 function locateInstallers() {
   const base = join(ROOT, 'src-tauri', 'target', 'release', 'bundle')
   const candidates = [
-    { kind: 'NSIS', dir: 'nsis', pattern: /^S-Loop_.*-setup\.exe$/i },
-    { kind: 'MSI', dir: 'msi', pattern: /^S-Loop_.*\.msi$/i },
+    { kind: 'NSIS', dir: 'nsis', pattern: /^Orbito_.*-setup\.exe$/i },
+    { kind: 'MSI', dir: 'msi', pattern: /^Orbito_.*\.msi$/i },
   ]
   const found = []
   for (const c of candidates) {
@@ -163,12 +163,12 @@ function ghToken() {
 }
 
 function defaultNotes(version) {
-  return `## S-Loop v${version}
+  return `## Orbito v${version}
 
 ### 安装包
 
-- **NSIS**: \`S-Loop_${version}_x64-setup.exe\` — per-user 安装,无需管理员权限,默认装到 \`%LOCALAPPDATA%\\S-Loop\`
-- **MSI**: \`S-Loop_${version}_x64_en-US.msi\` — 系统级安装
+- **NSIS**: \`Orbito_${version}_x64-setup.exe\` — per-user installation, no administrator rights required; installs by default to \`%LOCALAPPDATA%\\Orbito\`
+- **MSI**: \`Orbito_${version}_x64_en-US.msi\` — 系统级安装
 
 ### 首次启动
 
@@ -184,7 +184,7 @@ function defaultNotes(version) {
 function createRelease({ tag, target, notes, prerelease, installers, gh, token }) {
   const args = ['release', 'create', tag]
   if (target) { args.push('--target'); args.push(target) }
-  args.push('--title', `S-Loop ${tag}`)
+  args.push('--title', `Orbito ${tag}`)
   if (prerelease) args.push('--prerelease')
   args.push('--notes', notes)
   for (const ins of installers) args.push(ins.path)

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import DOMPurify from 'dompurify'
 
 interface DocxPreviewProps {
   filePath: string
@@ -26,7 +27,7 @@ export function DocxPreview({ filePath, onLoaded, onError }: DocxPreviewProps) {
 
         const result = await mammoth.convertToHtml({ arrayBuffer: bytes.buffer })
         if (!cancelled) {
-          setHtml(result.value)
+          setHtml(DOMPurify.sanitize(result.value))
           onLoaded()
         }
       } catch (err) {

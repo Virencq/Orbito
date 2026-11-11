@@ -29,7 +29,7 @@ export function MessageList({ sessionId, onEdit, onDelete }: MessageListProps) {
           id: streamingMessage.messageID,
           sessionID: sessionId,
           role: 'assistant' as const,
-          time: { created: Date.now() },
+          time: { created: 0 },
         },
         parts: streamingMessage.parts,
       })
@@ -48,7 +48,7 @@ export function MessageList({ sessionId, onEdit, onDelete }: MessageListProps) {
           info: { ...msg.info, time: last.info.time },
         }
       } else {
-        result.push({ ...msg })
+        result.push(msg)
       }
     }
     return result

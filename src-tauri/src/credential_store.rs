@@ -146,14 +146,14 @@ fn write_vault(app: &tauri::AppHandle, vault: &Map<String, Value>) -> Result<(),
         URL_SAFE_NO_PAD.encode(uuid::Uuid::new_v4().as_bytes())
     );
     let tmp = path.with_file_name(tmp_name);
-    std::fs::write(&tmp, protected)
-        .map_err(|e| format!("Unable to write MCP credential vault: {e}"))?;
-    if path.exists() {
-        std::fs::remove_file(&path)
-            .map_err(|e| format!("Unable to replace MCP credential vault: {e}"))?;
+    if let Err(error) = std::fs::write(&tmp, protected) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(format!("Unable to write MCP credential vault: {error}"));
     }
-    std::fs::rename(&tmp, &path)
-        .map_err(|e| format!("Unable to commit MCP credential vault: {e}"))
+    std::fs::rename(&tmp, &path).map_err(|error| {
+        let _ = std::fs::remove_file(&tmp);
+        format!("Unable to commit MCP credential vault: {error}")
+    })
 }
 
 fn merge_objects(target: &mut Map<String, Value>, patch: &Map<String, Value>) {

@@ -138,7 +138,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         }
       },
       onToolCall: (id, name, args) => {
-        console.log('[Cowork] Tool call:', name, id)
+        console.log('[Orbito] Tool call:', name, id)
         usePetStore.getState().onWorking()
         const sm = useAppStore.getState().streamingMessage[sid]
         if (!sm) return
@@ -230,7 +230,8 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         parts: [{ id: `${uid}-0`, type: 'text', text: content, sessionID: sid, messageID: uid }],
       })
 
-      if (session?.title === 'New Chat') {
+      const currentSession = useAppStore.getState().sessions.find((item) => item.id === sid)
+      if (currentSession?.title === 'New Chat') {
         updateSessionTitle(sid, content.slice(0, 40) + (content.length > 40 ? '...' : ''))
       }
 
@@ -300,7 +301,8 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
 
       // Optional UI hints are forwarded to the JCode adapter when present.
       // An empty model is valid: JCode will use its configured default model.
-      startStreaming(sid, 'pending-' + Date.now())
+      const pendingMessageId = 'pending-' + Date.now()
+      startStreaming(sid, pendingMessageId)
 
       usePetStore.getState().onThinking()
 
@@ -359,8 +361,8 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
         return
       }
 
-      const msgID = `pi-msg-${Date.now()}`
       const sm = useAppStore.getState().streamingMessage[sid]
+      const msgID = sm?.messageID || pendingMessageId
       const accumulatedParts = sm?.parts || []
       const textPart = accumulatedParts.find(p => p.type === 'text')
       if (textPart && 'text' in textPart && result.text) {
@@ -494,7 +496,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
     const nativeFiles = Array.from(e.dataTransfer?.files || [])
 
     try {
-      const fileData = e.dataTransfer.getData('application/x-cowork-file')
+      const fileData = e.dataTransfer.getData('application/x-orbito-file')
       if (fileData) {
         const { path, name, isDir } = JSON.parse(fileData)
 
@@ -547,9 +549,7 @@ export function ChatView({ embedded = false, workspaceMode = 'cowork', initialPr
       setIsDragOver(false)
     }
   }, [handleSubmit, workspaceMode, createModeSession])
-  const streamingMessages = useAppStore((state) => state.streamingMessage)
-  const streamingMessage = activeSessionId ? streamingMessages[activeSessionId] : EMPTY_STREAMING
-  const isStreaming = streamingMessage?.isStreaming ?? false
+  const isStreaming = useAppStore((state) => !!(activeSessionId && state.streamingMessage[activeSessionId]?.isStreaming))
 
   const filePreview = useFilePreviewStore((s) => s.preview)
 

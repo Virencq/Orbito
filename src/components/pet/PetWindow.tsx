@@ -40,6 +40,7 @@ export function PetWindow() {
 
     // 2. Listen for Tauri cross-window events (from main window's pet store)
     const unlisteners: (() => void)[] = []
+    let disposed = false
     const setupTauriListener = async () => {
       try {
         const { listen } = await import('@tauri-apps/api/event')
@@ -55,6 +56,10 @@ export function PetWindow() {
             setDisplayAnimFile(event.payload.idleAnimationFile || null)
           }
         )
+        if (disposed) {
+          unlisten1()
+          return
+        }
         unlisteners.push(unlisten1)
 
         // Pet window visibility events (keep in sync so pet window's store
@@ -68,6 +73,10 @@ export function PetWindow() {
             }
           }
         )
+        if (disposed) {
+          unlisten2()
+          return
+        }
         unlisteners.push(unlisten2)
       } catch {
         // Not in Tauri environment
@@ -76,6 +85,7 @@ export function PetWindow() {
     setupTauriListener()
 
     return () => {
+      disposed = true
       unsubscribe()
       unlisteners.forEach(fn => fn())
     }

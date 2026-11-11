@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Child, ChildStdin, Command, Stdio}, sync::{Arc, Mutex}, sync::atomic::{AtomicU64, Ordering}, thread};
+use std::{collections::HashMap, io::{BufRead, BufReader, Write}, path::PathBuf, process::{Child, ChildStdin, ChildStdout, Command, Stdio}, sync::{Arc, Mutex, mpsc}, sync::atomic::{AtomicU64, Ordering}, thread, time::{Duration, Instant}};
 use tauri::{AppHandle, Emitter, State};
 
 #[derive(Debug, Serialize, Clone)]
@@ -51,15 +51,67 @@ fn send_rpc_result(stdin: &Arc<Mutex<ChildStdin>>, id: u64, result: Value) -> Re
     guard.flush().map_err(|e| format!("Failed to flush ACP response: {e}"))
 }
 
-fn read_until_response(reader: &mut BufReader<std::process::ChildStdout>, request_id: u64) -> Result<Value, String> {
-    let mut line = String::new();
+const JCODE_START_TIMEOUT: Duration = Duration::from_secs(30);
+
+struct ChildKillGuard(Option<Child>);
+
+impl Drop for ChildKillGuard {
+    fn drop(&mut self) {
+        if let Some(child) = self.0.as_mut() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+}
+
+fn spawn_stdout_reader(stdout: ChildStdout) -> mpsc::Receiver<Result<String, String>> {
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        for line in BufReader::new(stdout).lines() {
+            match line {
+                Ok(line) => {
+                    if tx.send(Ok(line)).is_err() {
+                        break;
+                    }
+                }
+                Err(error) => {
+                    let _ = tx.send(Err(format!("Failed to read ACP response: {error}")));
+                    break;
+                }
+            }
+        }
+    });
+    rx
+}
+
+fn read_until_response(
+    response_rx: &mpsc::Receiver<Result<String, String>>,
+    request_id: u64,
+) -> Result<Value, String> {
+    let deadline = Instant::now() + JCODE_START_TIMEOUT;
     loop {
-        line.clear();
-        let n = reader.read_line(&mut line).map_err(|e| format!("Failed to read ACP response: {e}"))?;
-        if n == 0 { return Err("JCode ACP exited before returning a response.".to_string()); }
-        let value: RpcEnvelope = serde_json::from_str(line.trim()).map_err(|e| format!("Invalid JCode ACP JSON: {e}"))?;
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            return Err(format!("Timed out waiting 30 seconds for JCode ACP response id {request_id}."));
+        }
+        let line = match response_rx.recv_timeout(remaining) {
+            Ok(Ok(line)) => line,
+            Ok(Err(error)) => return Err(error),
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                return Err(format!("Timed out waiting 30 seconds for JCode ACP response id {request_id}."));
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                return Err("JCode ACP exited before returning a response.".to_string());
+            }
+        };
+        let Ok(value) = serde_json::from_str::<RpcEnvelope>(line.trim()) else {
+            // Some CLI versions print non-JSON banners to stdout; ignore them.
+            continue;
+        };
         if value.id.as_ref().and_then(Value::as_u64) == Some(request_id) {
-            if let Some(error) = value.error { return Err(format!("JCode ACP error: {error}")); }
+            if let Some(error) = value.error {
+                return Err(format!("JCode ACP error: {error}"));
+            }
             return Ok(value.result.unwrap_or(Value::Null));
         }
     }
@@ -125,19 +177,18 @@ fn find_jcode() -> Result<PathBuf, String> {
         }
     }
 
-    Err("JCode was not found. Checked JCODE_PATH, the per-user JCode install location, and PATH. If JCode is installed, restart Cowork after installation or set JCODE_PATH to the jcode executable.".to_string())
+    Err("JCode was not found. Checked JCODE_PATH, the per-user JCode install location, and PATH. If JCode is installed, restart Orbito after installation or set JCODE_PATH to the jcode executable.".to_string())
 }
 
 fn start_reader(
     app: AppHandle,
     session_key: String,
-    stdout: std::process::ChildStdout,
+    response_rx: mpsc::Receiver<Result<String, String>>,
     permission_requests: Arc<Mutex<HashMap<u64, Value>>>,
     sessions: Arc<Mutex<HashMap<String, SessionProcess>>>,
 ) {
     thread::spawn(move || {
-        let reader = BufReader::new(stdout);
-        for line in reader.lines() {
+        for line in response_rx {
             let Ok(line) = line else { break };
             let line = line.trim();
             if line.is_empty() { continue; }
@@ -150,7 +201,7 @@ fn start_reader(
                 }
             }
             if value.get("method").and_then(Value::as_str).is_some() || value.get("result").is_some() || value.get("error").is_some() {
-                let _ = app.emit("jcode://event", JCodeEvent { session_id: session_key.clone(), event: value });
+                let _ = app.emit_to("main", "jcode://event", JCodeEvent { session_id: session_key.clone(), event: value });
             }
         }
         // Remove and reap a process that exited unexpectedly so later prompts
@@ -159,7 +210,7 @@ fn start_reader(
         if let Some(mut session) = exited {
             let _ = session.child.wait();
         }
-        let _ = app.emit("jcode://event", JCodeEvent {
+        let _ = app.emit_to("main", "jcode://event", JCodeEvent {
             session_id: session_key,
             event: json!({"method":"session/closed","params":{"reason":"JCode ACP process exited"}}),
         });
@@ -167,29 +218,40 @@ fn start_reader(
 }
 
 #[tauri::command]
-pub fn jcode_start_session(app: AppHandle, state: State<'_, JCodeState>, workspace_dir: Option<String>) -> Result<String, String> {
+pub async fn jcode_start_session(app: AppHandle, state: State<'_, JCodeState>, workspace_dir: Option<String>) -> Result<String, String> {
+    let state = state.0.clone();
+    tauri::async_runtime::spawn_blocking(move || start_session_blocking(app, state, workspace_dir))
+        .await
+        .map_err(|e| format!("JCode session start task failed: {e}"))?
+}
+
+fn start_session_blocking(app: AppHandle, state: Arc<Mutex<HashMap<String, SessionProcess>>>, workspace_dir: Option<String>) -> Result<String, String> {
     let executable = find_jcode()?;
     let mut command = Command::new(executable);
     configure_no_console(&mut command);
     command.arg("acp").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
     if let Some(dir) = workspace_dir.as_deref() { command.current_dir(dir); }
-    let mut child = command.spawn().map_err(|e| format!("Failed to start JCode ACP: {e}"))?;
+    let child = command.spawn().map_err(|e| format!("Failed to start JCode ACP: {e}"))?;
+    let mut child_guard = ChildKillGuard(Some(child));
+    let child = child_guard.0.as_mut().ok_or("JCode ACP process unavailable")?;
     let stdin = Arc::new(Mutex::new(child.stdin.take().ok_or("JCode ACP stdin unavailable")?));
     let stdout = child.stdout.take().ok_or("JCode ACP stdout unavailable")?;
-    let mut reader = BufReader::new(stdout);
+    let response_rx = spawn_stdout_reader(stdout);
 
     send_rpc(&stdin, 1, "initialize", json!({
         "protocolVersion": 1,
-        "clientInfo": {"name":"Cowork","version":"0.1.0"},
+        "clientInfo": {"name":"Orbito","version":"0.1.0"},
         "clientCapabilities": {}
     }))?;
-    let _ = read_until_response(&mut reader, 1)?;
+    let _ = read_until_response(&response_rx, 1)?;
 
     let cwd = workspace_dir.clone().unwrap_or_else(|| std::env::current_dir().unwrap_or_default().to_string_lossy().to_string());
     send_rpc(&stdin, 2, "session/new", json!({"cwd": cwd}))?;
-    let result = read_until_response(&mut reader, 2)?;
+    let result = read_until_response(&response_rx, 2)?;
     let session_id = result.get("sessionId").and_then(Value::as_str).ok_or_else(|| format!("JCode ACP did not return sessionId: {result}"))?.to_string();
 
+    let mut sessions = state.lock().map_err(|e| e.to_string())?;
+    let child = child_guard.0.take().ok_or("JCode ACP process unavailable")?;
     let permission_requests = Arc::new(Mutex::new(HashMap::new()));
     let process = SessionProcess {
         child,
@@ -198,8 +260,9 @@ pub fn jcode_start_session(app: AppHandle, state: State<'_, JCodeState>, workspa
         next_request_id: AtomicU64::new(100),
         permission_requests: permission_requests.clone(),
     };
-    state.0.lock().map_err(|e| e.to_string())?.insert(session_id.clone(), process);
-    start_reader(app, session_id.clone(), reader.into_inner(), permission_requests, state.0.clone());
+    sessions.insert(session_id.clone(), process);
+    drop(sessions);
+    start_reader(app, session_id.clone(), response_rx, permission_requests, state.clone());
     Ok(session_id)
 }
 
@@ -209,6 +272,10 @@ pub fn jcode_prompt(
     session_id: String,
     prompt: String,
     images: Option<Vec<PromptImage>>,
+    permission_mode: Option<String>,
+    permission_rules: Option<Value>,
+    workspace_roots: Option<Value>,
+    web_search_config: Option<Value>,
 ) -> Result<(), String> {
     let sessions = state.0.lock().map_err(|e| e.to_string())?;
     let session = sessions.get(&session_id).ok_or_else(|| format!("JCode session not found: {session_id}"))?;
@@ -232,10 +299,15 @@ pub fn jcode_prompt(
     }
 
     let request_id = session.next_request_id.fetch_add(1, Ordering::Relaxed);
-    send_rpc(&session.stdin, request_id, "session/prompt", json!({
+    let mut params = json!({
         "sessionId": session.session_id,
         "prompt": content
-    }))?;
+    });
+    if let Some(value) = permission_mode { params["permissionMode"] = json!(value); }
+    if let Some(value) = permission_rules { params["permissionRules"] = value; }
+    if let Some(value) = workspace_roots { params["workspaceRoots"] = value; }
+    if let Some(value) = web_search_config { params["webSearchConfig"] = value; }
+    send_rpc(&session.stdin, request_id, "session/prompt", params)?;
     // ACP is streamed: return immediately after the request is written.
     // The background reader forwards session/update chunks and the final
     // session/prompt response to the frontend through jcode://event.
@@ -263,8 +335,8 @@ pub fn jcode_permission_response(
 
     let selected = options.iter().find(|option| {
         option.get("kind").and_then(Value::as_str).map(|kind| {
-            if approve { kind == "allow_once" || kind == "allow_always" }
-            else { kind == "reject_once" || kind == "reject_always" }
+            if approve { kind == "allow_once" }
+            else { kind == "reject_once" }
         }).unwrap_or(false)
     });
 
@@ -339,11 +411,15 @@ pub fn shutdown_all(state: &JCodeState) {
 }
 
 #[tauri::command]
-pub fn jcode_status() -> Result<Value, String> {
-    match find_jcode() {
-        Ok(path) => Ok(json!({"installed":true,"path":path.to_string_lossy(),"command":"jcode acp"})),
-        Err(error) => Ok(json!({"installed":false,"error":error})),
-    }
+pub async fn jcode_status() -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        match find_jcode() {
+            Ok(path) => Ok(json!({"installed":true,"path":path.to_string_lossy(),"command":"jcode acp"})),
+            Err(error) => Ok(json!({"installed":false,"error":error})),
+        }
+    })
+    .await
+    .map_err(|e| format!("JCode status task failed: {e}"))?
 }
 
 
@@ -458,21 +534,25 @@ pub fn jcode_update_runtime_settings(
 }
 
 #[tauri::command]
-pub fn jcode_doctor() -> Result<Value, String> {
-    let executable = find_jcode()?;
-    let mut command = Command::new(executable);
-    configure_no_console(&mut command);
-    command.args(["doctor"]).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
-    let output = command.output().map_err(|e| format!("Failed to run jcode doctor: {e}"))?;
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    Ok(json!({
-        "success": output.status.success(),
-        "code": output.status.code(),
-        "stdout": stdout,
-        "stderr": stderr,
-        "command": "jcode doctor"
-    }))
+pub async fn jcode_doctor() -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let executable = find_jcode()?;
+        let mut command = Command::new(executable);
+        configure_no_console(&mut command);
+        command.args(["doctor"]).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+        let output = command.output().map_err(|e| format!("Failed to run jcode doctor: {e}"))?;
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        Ok(json!({
+            "success": output.status.success(),
+            "code": output.status.code(),
+            "stdout": stdout,
+            "stderr": stderr,
+            "command": "jcode doctor"
+        }))
+    })
+    .await
+    .map_err(|e| format!("JCode doctor task failed: {e}"))?
 }
 
 #[tauri::command]
@@ -502,12 +582,12 @@ pub fn jcode_sync_mcp_config(servers: Value) -> Result<Value, String> {
     }
 
     let managed_path = dir.join("cowork-mcp-managed.json");
-    // New manifests store the exact config Cowork last wrote. Older versions
+    // New manifests store the exact config Orbito last wrote. Older versions
     // stored only names; those names cannot prove that a user has not edited
     // an entry, so legacy entries are deliberately treated conservatively.
     let previous_manifest: Value = match std::fs::read_to_string(&managed_path) {
         Ok(raw) => serde_json::from_str(&raw)
-            .map_err(|e| format!("Invalid Cowork MCP ownership manifest at {}: {e}", managed_path.display()))?,
+            .map_err(|e| format!("Invalid Orbito MCP ownership manifest at {}: {e}", managed_path.display()))?,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => json!({}),
         Err(e) => return Err(format!("Failed to read {}: {e}", managed_path.display())),
     };
@@ -538,8 +618,8 @@ pub fn jcode_sync_mcp_config(servers: Value) -> Result<Value, String> {
     let map = existing.as_object_mut().ok_or("JCode mcpServers must be an object.")?;
 
     // Remove stale entries only when the on-disk value still exactly matches
-    // the snapshot Cowork recorded. If a user edited an entry after sync, it
-    // is no longer safe for Cowork to claim or delete it.
+    // the snapshot Orbito recorded. If a user edited an entry after sync, it
+    // is no longer safe for Orbito to claim or delete it.
     if let Some(previous) = previous_values {
         for (name, last_written) in previous {
             if !desired.contains_key(name) && map.get(name) == Some(last_written) {
@@ -549,7 +629,7 @@ pub fn jcode_sync_mcp_config(servers: Value) -> Result<Value, String> {
     }
 
     // Never overwrite a same-name JCode entry unless the manifest proves it
-    // is the unchanged entry Cowork previously managed. This avoids losing
+    // is the unchanged entry Orbito previously managed. This avoids losing
     // independently configured MCP servers through name collisions.
     for (name, new_value) in &desired {
         if let Some(current) = map.get(name) {
@@ -561,10 +641,10 @@ pub fn jcode_sync_mcp_config(servers: Value) -> Result<Value, String> {
                 let detail = if legacy_claim {
                     "a legacy ownership record has no value snapshot"
                 } else {
-                    "the entry is not owned by Cowork"
+                    "the entry is not owned by Orbito"
                 };
                 return Err(format!(
-                    "MCP server name conflict for '{name}' in {} ({detail}). Rename the Cowork server or resolve the conflict manually; the existing JCode configuration was left unchanged.",
+                    "MCP server name conflict for '{name}' in {} ({detail}). Rename the Orbito server or resolve the conflict manually; the existing JCode configuration was left unchanged.",
                     path.display()
                 ));
             }
@@ -579,7 +659,7 @@ pub fn jcode_sync_mcp_config(servers: Value) -> Result<Value, String> {
     std::fs::write(
         &managed_path,
         serde_json::to_vec_pretty(&manifest).map_err(|e| e.to_string())?,
-    ).map_err(|e| format!("Failed to write Cowork MCP ownership manifest: {e}"))?;
+    ).map_err(|e| format!("Failed to write Orbito MCP ownership manifest: {e}"))?;
 
     let content = serde_json::to_vec_pretty(&config).map_err(|e| e.to_string())?;
     std::fs::write(&path, content)
@@ -588,7 +668,7 @@ pub fn jcode_sync_mcp_config(servers: Value) -> Result<Value, String> {
 }
 
 /// Read JCode's on-disk MCP configuration so the settings UI can import servers
-/// that were added outside Cowork. This is read-only and never rewrites the file.
+/// that were added outside Orbito. This is read-only and never rewrites the file.
 #[tauri::command]
 pub fn jcode_read_mcp_config() -> Result<Value, String> {
     let home = std::env::var_os("USERPROFILE")
