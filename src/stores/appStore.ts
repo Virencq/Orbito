@@ -89,7 +89,7 @@ interface AppState {
 
   // Actions - Sessions
   createSession: () => string
-  createCodeSession: () => string
+  createCodeSession: (projectId?: string | null) => string
   deleteSession: (id: string) => void
   deleteMessage: (sessionId: string, messageId: string) => void
   deleteMessagesFrom: (sessionId: string, messageId: string) => void
@@ -271,7 +271,7 @@ export const useAppStore = create<AppState>()(
         return id
       },
 
-      createCodeSession: () => {
+      createCodeSession: (projectId = null) => {
         const id = generateId()
         const now = Date.now()
         const session: Session = enrichSession({ id, title: 'New Chat', model: '', createdAt: now, updatedAt: now })
@@ -281,9 +281,15 @@ export const useAppStore = create<AppState>()(
           codeSessionIds: state.codeSessionIds.includes(id) ? state.codeSessionIds : [...state.codeSessionIds, id],
           sessionMessages: { ...state.sessionMessages, [id]: [] },
         }))
-        // New conversations start outside any Code project. Preserve existing
-        // project-to-session links, but do not inherit the last selected project.
-        useWorkspaceStore.getState().setActiveCodeProject(null)
+        // A fresh chat has no project context. Project activation passes an
+        // explicit project ID so that flow can intentionally create its chat.
+        const workspace = useWorkspaceStore.getState()
+        workspace.setActiveCodeProject(projectId)
+        const project = projectId
+          ? workspace.codeProjects.find((item) => item.id === projectId)
+          : undefined
+        set({ codeWorkspaceDir: project?.path ?? null })
+        if (project) workspace.updateCodeProject(project.id, { sessionId: id })
         db.createSession(id, 'New Chat').catch(console.warn)
         return id
       },
