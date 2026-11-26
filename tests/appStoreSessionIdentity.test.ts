@@ -240,6 +240,7 @@ describe('app store session identity', () => {
     const sessionId = useAppStore.getState().createCodeSession()
 
     expect(useWorkspaceStore.getState().activeCodeProjectId).toBeNull()
+    expect(useAppStore.getState().codeWorkspaceDir).toBeNull()
     expect(useWorkspaceStore.getState().codeProjects.find((project) => project.id === projectId)?.sessionId).toBeUndefined()
     expect(useAppStore.getState().codeActiveSessionId).toBe(sessionId)
   })
