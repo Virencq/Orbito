@@ -29,7 +29,6 @@ export function activateCodeProject(project: CodeProject): string {
     return project.sessionId
   }
 
-  // createCodeSession links itself to the active project, keeping all
-  // session creation paths consistent.
-  return app.createCodeSession()
+  // Creating a chat from an explicit project activation is intentional.
+  return app.createCodeSession(project.id)
 }
