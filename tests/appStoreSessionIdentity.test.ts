@@ -229,16 +229,34 @@ describe('app store session identity', () => {
     expect(useWorkspaceStore.getState().codeProjects.find((project) => project.id === staleProjectId)?.sessionId).toBeUndefined()
   })
 
-  it('automatically associates a newly created Code session with the active project', async () => {
+  it('starts a new Code chat without inheriting the active project', async () => {
     const { useAppStore } = await import('../src/stores/appStore')
     const projectId = useWorkspaceStore.getState().addCodeProject({
-      name: 'Active project',
+      name: 'Previously active project',
       path: 'C:\\work\\active',
     })
+    useWorkspaceStore.getState().setActiveCodeProject(projectId)
 
     const sessionId = useAppStore.getState().createCodeSession()
 
-    expect(useWorkspaceStore.getState().codeProjects.find((project) => project.id === projectId)?.sessionId).toBe(sessionId)
+    expect(useWorkspaceStore.getState().activeCodeProjectId).toBeNull()
+    expect(useWorkspaceStore.getState().codeProjects.find((project) => project.id === projectId)?.sessionId).toBeUndefined()
+    expect(useAppStore.getState().codeActiveSessionId).toBe(sessionId)
+  })
+
+  it('starts a new Cowork chat without inheriting the active folder project', async () => {
+    const { useAppStore } = await import('../src/stores/appStore')
+    const projectId = useWorkspaceStore.getState().addProject({
+      name: 'Previously active project',
+      path: 'C:\\work\\cowork',
+    })
+    useAppStore.setState({ workspaceDir: 'C:\\work\\cowork' })
+
+    const sessionId = useAppStore.getState().createSession()
+
+    expect(useWorkspaceStore.getState().projects.find((project) => project.id === projectId)?.sessionId).toBeUndefined()
+    expect(useWorkspaceStore.getState().projects.find((project) => project.id === projectId)?.sessionIds).toBeUndefined()
+    expect(useAppStore.getState().activeSessionId).toBe(sessionId)
   })
 
   it('clears project session links when all conversations are cleared', async () => {
