@@ -267,19 +267,6 @@ export const useAppStore = create<AppState>()(
           activeSessionId: id,
           sessionMessages: { ...state.sessionMessages, [id]: [] },
         }))
-        // Persist the conversation-to-project relationship for every chat created
-        // while a Cowork project folder is active, not only the first chat.
-        const activeWorkspaceDir = get().workspaceDir
-        if (activeWorkspaceDir) {
-          const normalizePath = (value: string) => value.split(String.fromCharCode(92)).join('/').replace(/\/+$/, '').toLowerCase()
-          const project = useWorkspaceStore.getState().projects.find(
-            (item) => item.path && normalizePath(item.path) === normalizePath(activeWorkspaceDir),
-          )
-          if (project) {
-            const sessionIds = [...new Set([...(project.sessionIds || []), ...(project.sessionId ? [project.sessionId] : []), id])]
-            useWorkspaceStore.getState().updateProject(project.id, { sessionId: project.sessionId || id, sessionIds })
-          }
-        }
         db.createSession(id, 'New Chat').catch(console.warn)
         return id
       },
@@ -294,15 +281,9 @@ export const useAppStore = create<AppState>()(
           codeSessionIds: state.codeSessionIds.includes(id) ? state.codeSessionIds : [...state.codeSessionIds, id],
           sessionMessages: { ...state.sessionMessages, [id]: [] },
         }))
-        // Keep the active project's durable session link synchronized even when
-        // ChatView has to create a session itself (e.g. after clearing history).
-        const workspace = useWorkspaceStore.getState()
-        const activeProject = workspace.codeProjects.find(
-          (project) => project.id === workspace.activeCodeProjectId,
-        )
-        if (activeProject && !activeProject.sessionId) {
-          workspace.updateCodeProject(activeProject.id, { sessionId: id })
-        }
+        // New conversations start outside any Code project. Preserve existing
+        // project-to-session links, but do not inherit the last selected project.
+        useWorkspaceStore.getState().setActiveCodeProject(null)
         db.createSession(id, 'New Chat').catch(console.warn)
         return id
       },
